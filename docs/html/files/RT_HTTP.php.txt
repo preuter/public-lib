@@ -1,0 +1,186 @@
+<?php
+ /**
+  * Configurable, delayed, push-style HTTP
+  * 
+  * @file RT_HTTP.php
+  * @date 2014-08-13 11:46 PDT
+  * @author Paul Reuter
+  * @version 1.0.1
+  *
+  * @modifications <pre>
+  * 1.0.0 - 2013-05-21 - Created from template: phpclass
+  * 1.0.1 - 2014-08-13 - Add: support for posting arrays.
+  * </pre>
+  */
+
+
+
+/**#@+
+ * Defined constants:
+ */
+// None
+/**#@-*/
+
+
+/**
+ * Configurable, delayed, push-style HTTP
+ * @package RT_HTTP
+ */
+class RT_HTTP {
+  /** cURL handle */
+  var $ch = null;
+  var $opts = array();
+
+  var $isStreaming = false;
+
+  /**
+   * Configurable, delayed, push-style HTTP
+   *
+   * @public
+   * @return new RT_HTTP object
+   */
+  function RT_HTTP() { 
+    $this->initialize();
+    return $this;
+  } // END: constructor RT_HTTP
+
+  function initialize() { 
+    $this->isStreaming = false;
+    $this->ch = curl_init();
+    register_shutdown_function(array($this,'shutdown'));
+    curl_setopt($this->ch,CURLOPT_AUTOREFERER,true);
+    curl_setopt($this->ch,CURLOPT_BINARYTRANSFER,true);
+    curl_setopt($this->ch,CURLOPT_FOLLOWLOCATION,true);
+    curl_setopt($this->ch,CURLOPT_FORBID_REUSE,true);
+    curl_setopt($this->ch,CURLOPT_FRESH_CONNECT,true);
+    curl_setopt($this->ch,CURLOPT_SSL_VERIFYHOST,false);
+    curl_setopt($this->ch,CURLOPT_SSL_VERIFYPEER,false);
+    //curl_setopt($this->ch,CURLOPT_NOSIGNAL,true);
+  } // END: function initialize()
+
+
+  function get($url) { 
+    $this->isStreaming = false;
+    curl_setopt($this->ch,CURLOPT_RETURNTRANSFER,true);
+    curl_setopt($this->ch,CURLOPT_POST,false);
+    curl_setopt($this->ch,CURLOPT_HTTPGET,true);
+    curl_setopt($this->ch,CURLOPT_URL,$url);
+
+    foreach(array_keys($this->opts) as $k) { 
+      curl_setopt($this->ch,$k,$this->opts[$k]);
+    }
+
+    $response = curl_exec($this->ch);
+    $this->info = curl_getinfo($this->ch);
+    return $response;
+  } // END: function get($url)
+
+
+  function post($url,$data=null) { 
+    $this->isStreaming = false;
+    if( !is_array($data) ) { 
+      if( empty($data) ) { 
+        $data = array();
+      } else { 
+        return false;
+      }
+    }
+    curl_setopt($this->ch,CURLOPT_RETURNTRANSFER,true);
+    curl_setopt($this->ch,CURLOPT_POST,count($data));
+    curl_setopt($this->ch,CURLOPT_POSTFIELDS,$this->_posttext($data));
+    curl_setopt($this->ch,CURLOPT_URL,$url);
+
+    foreach(array_keys($this->opts) as $k) { 
+      curl_setopt($this->ch,$k,$this->opts[$k]);
+    }
+
+    $response = curl_exec($this->ch);
+    $this->info = curl_getinfo($this->ch);
+    return $response;
+  } // END: function post($url,$data)
+
+
+  function _posttext($data) { 
+    $text = array();
+    foreach( array_keys($data) as $k ) { 
+      if( is_array($data[$k]) ) { 
+        foreach( array_keys($data[$k]) as $i ) { 
+          $text[] = $k.'[]='.urlencode($data[$k][$i]);
+        }
+      } else { 
+        $text[] = $k.'='.urlencode($data[$k]);
+      }
+    }
+    return implode('&',$text);
+  } // END: function _posttext($data)
+
+
+  function stream($url,$callback=null) { 
+    $this->_callback = $callback;
+    curl_setopt($this->ch,CURLOPT_RETURNTRANSFER,false);
+    curl_setopt($this->ch,CURLOPT_WRITEFUNCTION,array($this,'_stream_cb'));
+    curl_setopt($this->ch,CURLOPT_URL,$url);
+    curl_setopt($this->ch,CURLOPT_FAILONERROR,true);
+
+    foreach(array_keys($this->opts) as $k) { 
+      curl_setopt($this->ch,$k,$this->opts[$k]);
+    }
+
+    $this->isStreaming = true;
+    curl_exec($this->ch);
+    $this->isStreaming = false;
+
+    $this->info = curl_getinfo($this->ch);
+    return $this->_data;
+  } // END: function stream($callback,$url)
+
+
+  function _stream_cb($ch,$data) { 
+    if( $this->_callback ) { 
+      call_user_func($this->_callback,$data);
+    } else { 
+      echo($data);
+    }
+    $this->_data = $data;
+    return strlen($data);
+  } // END: function _stream_cb($ch,$data)
+
+
+  function setOpt($k,$v=null) { 
+    $this->opts[$k] = $v;
+  } // END: function setOpt($k,$v=null);
+
+  function getOpt($k) { 
+    if( isset($this->opts[$k]) ) { 
+      return $this->opts[$k];
+    }
+    return curl_getopt($this->ch,$k);
+  } // END: function getOpt($k)
+
+
+  function shutdown() { 
+    if( $this->ch ) { 
+      curl_close($this->ch);
+    }
+    $this->ch = null;
+    return true;
+  } // END: function shutdown()
+
+
+  function isConnected() { 
+    return $this->isStreaming;
+  } // END: function isConnected()
+
+} // END: class RT_HTTP
+
+
+/*
+$http = new RT_HTTP();
+$data = $http->stream("http://koncept.mine.nu/stream.php");
+print_r($http);
+echo("\ndata: ".substr($data,0,70)."\n");
+*/
+
+// EOF -- RT_HTTP.php
+?>
+

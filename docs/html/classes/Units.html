@@ -1,0 +1,1363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0"/>
+    <meta charset="utf-8"/>
+    <title>Public Core Libraries</title>
+    <meta name="author" content=""/>
+    <meta name="description" content=""/>
+
+    <link href="../css/bootstrap-combined.no-icons.min.css" rel="stylesheet">
+    <link href="../css/font-awesome.min.css" rel="stylesheet">
+    <link href="../css/prism.css" rel="stylesheet" media="all"/>
+    <link href="../css/template.css" rel="stylesheet" media="all"/>
+    
+    <!--[if lt IE 9]>
+    <script src="../js/html5.js"></script>
+    <![endif]-->
+    <script src="../js/jquery-1.11.0.min.js"></script>
+    <script src="../js/ui/1.10.4/jquery-ui.min.js"></script>
+    <script src="../js/bootstrap.min.js"></script>
+    <script src="../js/jquery.smooth-scroll.js"></script>
+    <script src="../js/prism.min.js"></script>
+    <!-- TODO: Add http://jscrollpane.kelvinluck.com/ to style the scrollbars for browsers not using webkit-->
+    <script type="text/javascript">
+    function loadExternalCodeSnippets() {
+        Array.prototype.slice.call(document.querySelectorAll('pre[data-src]')).forEach(function (pre) {
+            var src = pre.getAttribute('data-src');
+            var extension = (src.match(/\.(\w+)$/) || [, ''])[1];
+            var language = 'php';
+
+            var code = document.createElement('code');
+            code.className = 'language-' + language;
+
+            pre.textContent = '';
+
+            code.textContent = 'Loading…';
+
+            pre.appendChild(code);
+
+            var xhr = new XMLHttpRequest();
+
+            xhr.open('GET', src, true);
+
+            xhr.onreadystatechange = function () {
+                if (xhr.readyState == 4) {
+
+                    if (xhr.status < 400 && xhr.responseText) {
+                        code.textContent = xhr.responseText;
+
+                        Prism.highlightElement(code);
+                    }
+                    else if (xhr.status >= 400) {
+                        code.textContent = '✖ Error ' + xhr.status + ' while fetching file: ' + xhr.statusText;
+                    }
+                    else {
+                        code.textContent = '✖ Error: File does not exist or is empty';
+                    }
+                }
+            };
+
+            xhr.send(null);
+        });
+    }
+
+    $(document).ready(function(){
+        loadExternalCodeSnippets();
+    });
+    $('#source-view').on('shown', function () {
+        loadExternalCodeSnippets();
+    })
+</script>
+
+    <link rel="shortcut icon" href="../images/favicon.ico"/>
+    <link rel="apple-touch-icon" href="../images/apple-touch-icon.png"/>
+    <link rel="apple-touch-icon" sizes="72x72" href="../images/apple-touch-icon-72x72.png"/>
+    <link rel="apple-touch-icon" sizes="114x114" href="../images/apple-touch-icon-114x114.png"/>
+</head>
+<body>
+
+<div class="navbar navbar-fixed-top">
+    <div class="navbar-inner">
+        <div class="container">
+            <a class="btn btn-navbar" data-toggle="collapse" data-target=".nav-collapse">
+                <i class="icon-ellipsis-vertical"></i>
+            </a>
+            <a class="brand" href="../index.html">Public Core Libraries</a>
+
+            <div class="nav-collapse">
+                <ul class="nav pull-right">
+                                        <li class="dropdown" id="charts-menu">
+                        <a href="#" class="dropdown-toggle" data-toggle="dropdown">
+                            Charts <b class="caret"></b>
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li>
+                                <a href="../graphs/class.html">
+                                    <i class="icon-list-alt"></i>&#160;Class hierarchy diagram
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                    <li class="dropdown" id="reports-menu">
+                        <a href="#" class="dropdown-toggle" data-toggle="dropdown">
+                            Reports <b class="caret"></b>
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li>
+                                <a href="../reports/errors.html">
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    <i class="icon-list-alt"></i>&#160;Errors <span class="label label-info pull-right">946</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="../reports/markers.html">
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    <i class="icon-list-alt"></i>&#160;Markers <span class="label label-info pull-right">8</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="../reports/deprecated.html">
+                                                                                                            <i class="icon-list-alt"></i>&#160;Deprecated <span class="label label-info pull-right">0</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    <!--<div class="go_to_top">-->
+    <!--<a href="#___" style="color: inherit">Back to top&#160;&#160;<i class="icon-upload icon-white"></i></a>-->
+    <!--</div>-->
+</div>
+
+<div id="___" class="container-fluid">
+        <section class="row-fluid">
+        <div class="span2 sidebar">
+                                <div class="accordion" style="margin-bottom: 0">
+        <div class="accordion-group">
+            <div class="accordion-heading">
+                                    <a class="accordion-toggle " data-toggle="collapse" data-target="#namespace-1822660741"></a>
+                                <a href="../namespaces/default.html" style="margin-left: 30px; padding-left: 0">\</a>
+            </div>
+            <div id="namespace-1822660741" class="accordion-body collapse in">
+                <div class="accordion-inner">
+
+                    
+                    <ul>
+                                                                                                    <li class="class"><a href="../classes/A.html">A</a></li>
+                                                    <li class="class"><a href="../classes/AIS.html">AIS</a></li>
+                                                    <li class="class"><a href="../classes/AIS_Message.html">AIS_Message</a></li>
+                                                    <li class="class"><a href="../classes/AIS_Sixbit.html">AIS_Sixbit</a></li>
+                                                    <li class="class"><a href="../classes/Alarm.html">Alarm</a></li>
+                                                    <li class="class"><a href="../classes/ChiSquare.html">ChiSquare</a></li>
+                                                    <li class="class"><a href="../classes/ColorTerm.html">ColorTerm</a></li>
+                                                    <li class="class"><a href="../classes/ConfusionMatrix.html">ConfusionMatrix</a></li>
+                                                    <li class="class"><a href="../classes/ConvexHull.html">ConvexHull</a></li>
+                                                    <li class="class"><a href="../classes/Cyclical.html">Cyclical</a></li>
+                                                    <li class="class"><a href="../classes/DirectoryListing.html">DirectoryListing</a></li>
+                                                    <li class="class"><a href="../classes/DirectoryWatcher.html">DirectoryWatcher</a></li>
+                                                    <li class="class"><a href="../classes/DWT.html">DWT</a></li>
+                                                    <li class="class"><a href="../classes/Expfit.html">Expfit</a></li>
+                                                    <li class="class"><a href="../classes/Filesystem.html">Filesystem</a></li>
+                                                    <li class="class"><a href="../classes/Fit.html">Fit</a></li>
+                                                    <li class="class"><a href="../classes/FtpReader.html">FtpReader</a></li>
+                                                    <li class="class"><a href="../classes/HClust.html">HClust</a></li>
+                                                    <li class="class"><a href="../classes/Histogram.html">Histogram</a></li>
+                                                    <li class="class"><a href="../classes/HTMLTable.html">HTMLTable</a></li>
+                                                    <li class="class"><a href="../classes/KeySort.html">KeySort</a></li>
+                                                    <li class="class"><a href="../classes/Logfit.html">Logfit</a></li>
+                                                    <li class="class"><a href="../classes/MultipleRegression.html">MultipleRegression</a></li>
+                                                    <li class="class"><a href="../classes/Polyfit.html">Polyfit</a></li>
+                                                    <li class="class"><a href="../classes/PriorityQueue.html">PriorityQueue</a></li>
+                                                    <li class="class"><a href="../classes/RelayServer.html">RelayServer</a></li>
+                                                    <li class="class"><a href="../classes/RSS.html">RSS</a></li>
+                                                    <li class="class"><a href="../classes/RSS_Item.html">RSS_Item</a></li>
+                                                    <li class="class"><a href="../classes/RT_HTTP.html">RT_HTTP</a></li>
+                                                    <li class="class"><a href="../classes/Scheduler.html">Scheduler</a></li>
+                                                    <li class="class"><a href="../classes/SocketCallback.html">SocketCallback</a></li>
+                                                    <li class="class"><a href="../classes/SocketClient.html">SocketClient</a></li>
+                                                    <li class="class"><a href="../classes/SocketServer.html">SocketServer</a></li>
+                                                    <li class="class"><a href="../classes/Table.html">Table</a></li>
+                                                    <li class="class"><a href="../classes/Ublox.html">Ublox</a></li>
+                                                    <li class="class"><a href="../classes/Ublox_ACK.html">Ublox_ACK</a></li>
+                                                    <li class="class"><a href="../classes/Ublox_CFG.html">Ublox_CFG</a></li>
+                                                    <li class="class"><a href="../classes/Ublox_NAV.html">Ublox_NAV</a></li>
+                                                    <li class="class"><a href="../classes/Units.html">Units</a></li>
+                                                    <li class="class"><a href="../classes/USMarketCalendar.html">USMarketCalendar</a></li>
+                                                    <li class="class"><a href="../classes/WXT520.html">WXT520</a></li>
+                                            </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+        </div>
+    </section>
+    <section class="row-fluid">
+        <div class="span10 offset2">
+            <div class="row-fluid">
+                <div class="span8 content class">
+                    <nav>
+                                                <a href="../namespaces/default.html">\</a> <i class="icon-level-up"></i>
+                                            </nav>
+                    <a href="#source-view" role="button" class="pull-right btn" data-toggle="modal"><i class="icon-code"></i></a>
+
+                    <h1><small>\</small>Units</h1>
+                    <p><em>&lt;pre&gt;
+Unit conversion is everywhere.  Don&#039;t crash that satellite!
+Double check your calculations before launch.</em></p>
+                    <p>NB: <si_value> = <input> * toSI_scale + toSI_offset;</p>
+<p>Usage Senarios:</p>
+<ul>
+<li>$deg_C = Units::Convert(&quot;32 deg_F&quot;,&quot;deg_C&quot;);</li>
+<li>$deg_C = Units::Convert(&quot;deg_F&quot;,&quot;deg_C&quot;,32);</li>
+<li>
+<p>$deg_C = Units::Convert(&quot;32 deg_F to deg_C&quot;);</p>
+</li>
+<li>Convert from &quot;12 inches&quot; to SI to &quot;cm&quot;:
+$u = new Units();
+$value_m  = $u-&gt;toSI(&quot;12 inches&quot;);
+$value_cm = $u-&gt;fromSI(&quot;cm&quot;,$value_m);</li>
+<li>Convert from deg_F to deg_C for bulk callback:
+$u = new Units();
+list($s_f,$o_f) = $u-&gt;getToSI(&quot;deg_F&quot;);
+list($s_t,$o_t) = $u-&gt;getToSI(&quot;deg_C&quot;);
+$value = ((212 * $s_f + $o_f) - $o_t) / $s_t;</li>
+</ul>
+<p>Example Walk-through: <code>Convert deg_F to deg_C</code>
+$u = new Units();
+list($s_f,$o_f) = $u-&gt;getToSI(&quot;deg_F&quot;); // returns (0.555556,255.37222)
+list($s_t,$o_t) = $u-&gt;getToSI(&quot;deg_C&quot;); // returns (1,273.15)
+$value = ((212 <em> $s_f + $o_f) - $o_t) / $s_t;
+?     = ((212 </em> 0.5555556 + 255.37222) - 273.15 ) / 1
+?     = ( 117.7777777778  + 255.37222) - 273.15 ) / 1
+?     = (          373.149998          - 273.15
+$value = 99.99999998
+</pre></p>
+                    
+                                        
+                    <section id="summary">
+                        <h2>Summary</h2>
+                        <section class="row-fluid heading">
+                            <section class="span4">
+                                <a href="#methods">Methods</a>
+                            </section>
+                            <section class="span4">
+                                <a href="#properties">Properties</a>
+                            </section>
+                            <section class="span4">
+                                <a href="#constants">Constants</a>
+                            </section>
+                        </section>
+                        <section class="row-fluid public">
+                            <section class="span4">
+                                                                    <a href="../classes/Units.html#method_Convert" class="">Convert()</a><br />
+                                                                    <a href="../classes/Units.html#method_getToSI" class="">getToSI()</a><br />
+                                                                    <a href="../classes/Units.html#method_toSI" class="">toSI()</a><br />
+                                                                    <a href="../classes/Units.html#method_fromSI" class="">fromSI()</a><br />
+                                                                    <a href="../classes/Units.html#method_isSingular" class="">isSingular()</a><br />
+                                                                    <a href="../classes/Units.html#method_isPlural" class="">isPlural()</a><br />
+                                                                    <a href="../classes/Units.html#method_hasPlural" class="">hasPlural()</a><br />
+                                                                    <a href="../classes/Units.html#method_getSingular" class="">getSingular()</a><br />
+                                                                    <a href="../classes/Units.html#method_getPlural" class="">getPlural()</a><br />
+                                                                    <a href="../classes/Units.html#method_getUnitSymbol" class="">getUnitSymbol()</a><br />
+                                                                    <a href="../classes/Units.html#method_getPrefixSymbol" class="">getPrefixSymbol()</a><br />
+                                                                    <a href="../classes/Units.html#method_isBase" class="">isBase()</a><br />
+                                                                    <a href="../classes/Units.html#method_hasDimension" class="">hasDimension()</a><br />
+                                                                    <a href="../classes/Units.html#method_findUnitByName" class="">findUnitByName()</a><br />
+                                                                    <a href="../classes/Units.html#method_findUnitBySymbol" class="">findUnitBySymbol()</a><br />
+                                                                    <a href="../classes/Units.html#method_findPrefixByName" class="">findPrefixByName()</a><br />
+                                                                    <a href="../classes/Units.html#method_findPrefixBySymbol" class="">findPrefixBySymbol()</a><br />
+                                                                    <a href="../classes/Units.html#method_applyPrefix" class="">applyPrefix()</a><br />
+                                                                    <a href="../classes/Units.html#method_applyDefinition" class="">applyDefinition()</a><br />
+                                                                    <a href="../classes/Units.html#method_getValueFromId" class="">getValueFromId()</a><br />
+                                                            </section>
+                            <section class="span4">
+                                                                    <a href="../classes/Units.html#property_prefixes" class="">$prefixes</a><br />
+                                                                    <a href="../classes/Units.html#property_units" class="">$units</a><br />
+                                                            </section>
+                            <section class="span4">
+                                                                    <em>No constants found</em>
+                                                            </section>
+                        </section>
+                        <section class="row-fluid protected">
+                            <section class="span4">
+                                                                    <em>No protected methods found</em>
+                                                            </section>
+                            <section class="span4">
+                                                                    <em>No protected properties found</em>
+                                                            </section>
+                            <section class="span4">
+                                <em>N/A</em>
+                            </section>
+                        </section>
+                        <section class="row-fluid private">
+                            <section class="span4">
+                                                                    <em>No private methods found</em>
+                                                            </section>
+                            <section class="span4">
+                                                                    <em>No private properties found</em>
+                                                            </section>
+                            <section class="span4">
+                                <em>N/A</em>
+                            </section>
+                        </section>
+                    </section>
+                </div>
+                <aside class="span4 detailsbar">
+                                        
+                    
+                    <dl>
+                        <dt>File</dt>
+                            <dd><a href="../files/Units.html"><div class="path-wrapper">Units.php</div></a></dd>
+                                                <dt>Package</dt>
+                            <dd><div class="namespace-wrapper">Core\Utilities</div></dd>
+                                                <dt>Class hierarchy</dt>
+                            <dd class="hierarchy">
+                                                                                                                                                                    <div class="namespace-wrapper">\Units</div>
+                            </dd>
+
+                        
+                        
+                        
+                        
+                                                                        </dl>
+                    <h2>Tags</h2>
+                    <table class="table table-condensed">
+                                            <tr><td colspan="2"><em>None found</em></td></tr>
+                                        </table>
+                </aside>
+            </div>
+
+                        
+                                    <a id="properties" name="properties"></a>
+            <div class="row-fluid">
+                <div class="span8 content class">
+                    <h2>Properties</h2>
+                </div>
+                <aside class="span4 detailsbar"></aside>
+            </div>
+
+                                    <div class="row-fluid">
+        <div class="span8 content class">
+            <a id="property_prefixes" name="property_prefixes" class="anchor"></a>
+            <article class="property">
+                <h3 class="public ">$prefixes</h3>
+                <pre class="signature">$prefixes : \hash</pre>
+                <p><em></em></p>
+                
+
+                                <h4>Type</h4>
+                \hash
+                &mdash; Stores SI prefixes (tera,peta,etc...) and their scale factors.                            </article>
+        </div>
+        <aside class="span4 detailsbar">
+            <h1><i class="icon-arrow-down"></i></h1>
+                        <dl>
+                                                            </dl>
+            <h2>Tags</h2>
+            <table class="table table-condensed">
+                                    <tr><td colspan="2"><em>None found</em></td></tr>
+                            </table>
+        </aside>
+    </div>
+
+                                    <div class="row-fluid">
+        <div class="span8 content class">
+            <a id="property_units" name="property_units" class="anchor"></a>
+            <article class="property">
+                <h3 class="public ">$units</h3>
+                <pre class="signature">$units : \hash</pre>
+                <p><em></em></p>
+                
+
+                                <h4>Type</h4>
+                \hash
+                &mdash; Stores unit names, definitions, dimensions and symbols.                            </article>
+        </div>
+        <aside class="span4 detailsbar">
+            <h1><i class="icon-arrow-down"></i></h1>
+                        <dl>
+                                                            </dl>
+            <h2>Tags</h2>
+            <table class="table table-condensed">
+                                    <tr><td colspan="2"><em>None found</em></td></tr>
+                            </table>
+        </aside>
+    </div>
+
+                                                            
+                                    <a id="methods" name="methods"></a>
+            <div class="row-fluid">
+                <div class="span8 content class"><h2>Methods</h2></div>
+                <aside class="span4 detailsbar"></aside>
+            </div>
+
+                                    <div class="row-fluid">
+        <div class="span8 content class">
+            <a id="method_Convert" name="method_Convert" class="anchor"></a>
+            <article class="method">
+                <h3 class="public ">Convert()</h3>
+                <a href="#source-view" role="button" class="pull-right btn" data-toggle="modal" style="font-size: 1.1em; padding: 9px 14px"><i class="icon-code"></i></a>
+                <pre class="signature" style="margin-right: 54px;">Convert(string  <span class="argument">$from</span>, string  <span class="argument">$to = null</span>, \number  <span class="argument">$qty = 1</span>) : float</pre>
+                <p><em>Static method to convert from a unit definition to a unit definition.</em></p>
+                
+
+                                    <h4>Parameters</h4>
+                    <table class="table table-condensed table-hover">
+                                                    <tr>
+                                <td>string</td>
+                                <td>$from </td>
+                                <td><p>Input unit definition.</p></td>
+                            </tr>
+                                                    <tr>
+                                <td>string</td>
+                                <td>$to </td>
+                                <td><p>Output unit definition.</p></td>
+                            </tr>
+                                                    <tr>
+                                <td>\number</td>
+                                <td>$qty </td>
+                                <td><p>A number to convert $from $to.</p></td>
+                            </tr>
+                                            </table>
+                
+                
+                                    <h4>Returns</h4>
+                    float
+                                            &mdash; <p>The converted value.</p>
+                                    				
+                            </article>
+        </div>
+        <aside class="span4 detailsbar">
+            <h1><i class="icon-arrow-down"></i></h1>
+                                                            <dl>
+                                                                            </dl>
+            <h2>Tags</h2>
+            <table class="table table-condensed">
+                                    <tr>
+                        <th>
+                            public
+                        </th>
+                        <td>
+                                                                                            
+                                                    </td>
+                    </tr>
+                                    <tr>
+                        <th>
+                            static
+                        </th>
+                        <td>
+                                                                                            
+                                                    </td>
+                    </tr>
+                            </table>
+        </aside>
+    </div>
+
+                                    <div class="row-fluid">
+        <div class="span8 content class">
+            <a id="method_getToSI" name="method_getToSI" class="anchor"></a>
+            <article class="method">
+                <h3 class="public ">getToSI()</h3>
+                <a href="#source-view" role="button" class="pull-right btn" data-toggle="modal" style="font-size: 1.1em; padding: 9px 14px"><i class="icon-code"></i></a>
+                <pre class="signature" style="margin-right: 54px;">getToSI(string  <span class="argument">$from</span>) : \array(scale,offset)</pre>
+                <p><em>Find the scale and offset coefficients to user&#039;s input.</em></p>
+                <p>C = K @ 273.15;
+F = R @ 459.67;
+R = 1.8/K;
+F = 1.8/K @ 459.67;</p>
+<p>F -&gt; C :: F -&gt; K, C &lt;- K
+F -&gt; K :: s = 1/1.8, o = 459.67 :: (212 F + 459.67) / 1.8 = 373.15 K
+K -&gt; C :: s = 1, o = 273.15 :: ( 373.15 K / 1.0 ) - 273.15 = 100 C</p>
+
+                                    <h4>Parameters</h4>
+                    <table class="table table-condensed table-hover">
+                                                    <tr>
+                                <td>string</td>
+                                <td>$from </td>
+                                <td><p>User's unit definition (non-base-units).</p></td>
+                            </tr>
+                                            </table>
+                
+                
+                                    <h4>Returns</h4>
+                    \array(scale,offset)
+                                            &mdash; <p>Amount to add to a quantity before
+multiplying by the scale amount in order to obtain SI units.</p>
+                                    				
+                            </article>
+        </div>
+        <aside class="span4 detailsbar">
+            <h1><i class="icon-arrow-down"></i></h1>
+                                                            <dl>
+                                                                            </dl>
+            <h2>Tags</h2>
+            <table class="table table-condensed">
+                                    <tr>
+                        <th>
+                            public
+                        </th>
+                        <td>
+                                                                                            
+                                                    </td>
+                    </tr>
+                            </table>
+        </aside>
+    </div>
+
+                                    <div class="row-fluid">
+        <div class="span8 content class">
+            <a id="method_toSI" name="method_toSI" class="anchor"></a>
+            <article class="method">
+                <h3 class="public ">toSI()</h3>
+                <a href="#source-view" role="button" class="pull-right btn" data-toggle="modal" style="font-size: 1.1em; padding: 9px 14px"><i class="icon-code"></i></a>
+                <pre class="signature" style="margin-right: 54px;">toSI(string  <span class="argument">$from</span>, float  <span class="argument">$qty = 1</span>) : float</pre>
+                <p><em>Find and apply the scale and offset coefficients to user&#039;s input.</em></p>
+                
+
+                                    <h4>Parameters</h4>
+                    <table class="table table-condensed table-hover">
+                                                    <tr>
+                                <td>string</td>
+                                <td>$from </td>
+                                <td><p>What to convert SI unit from (from mile to SI? $from=&quot;mile&quot;)</p></td>
+                            </tr>
+                                                    <tr>
+                                <td>float</td>
+                                <td>$qty </td>
+                                <td><p>Number value in SI units to convert to $to units.</p></td>
+                            </tr>
+                                            </table>
+                
+                
+                                    <h4>Returns</h4>
+                    float
+                                            &mdash; <p>The converted $qty, from $from to SI units.</p>
+                                    				
+                            </article>
+        </div>
+        <aside class="span4 detailsbar">
+            <h1><i class="icon-arrow-down"></i></h1>
+                                                            <dl>
+                                                                            </dl>
+            <h2>Tags</h2>
+            <table class="table table-condensed">
+                                    <tr>
+                        <th>
+                            public
+                        </th>
+                        <td>
+                                                                                            
+                                                    </td>
+                    </tr>
+                            </table>
+        </aside>
+    </div>
+
+                                    <div class="row-fluid">
+        <div class="span8 content class">
+            <a id="method_fromSI" name="method_fromSI" class="anchor"></a>
+            <article class="method">
+                <h3 class="public ">fromSI()</h3>
+                <a href="#source-view" role="button" class="pull-right btn" data-toggle="modal" style="font-size: 1.1em; padding: 9px 14px"><i class="icon-code"></i></a>
+                <pre class="signature" style="margin-right: 54px;">fromSI(string  <span class="argument">$to</span>, float  <span class="argument">$qty = 1</span>) : float</pre>
+                <p><em>Find and apply the scale and offset coefficients to user&#039;s input.</em></p>
+                
+
+                                    <h4>Parameters</h4>
+                    <table class="table table-condensed table-hover">
+                                                    <tr>
+                                <td>string</td>
+                                <td>$to </td>
+                                <td><p>What to convert SI unit to (meter to mile? $to=&quot;mile&quot;)</p></td>
+                            </tr>
+                                                    <tr>
+                                <td>float</td>
+                                <td>$qty </td>
+                                <td><p>Number value in SI units to convert to $to units.</p></td>
+                            </tr>
+                                            </table>
+                
+                
+                                    <h4>Returns</h4>
+                    float
+                                            &mdash; <p>The converted $qty, from SI to $to units.</p>
+                                    				
+                            </article>
+        </div>
+        <aside class="span4 detailsbar">
+            <h1><i class="icon-arrow-down"></i></h1>
+                                                            <dl>
+                                                                            </dl>
+            <h2>Tags</h2>
+            <table class="table table-condensed">
+                                    <tr>
+                        <th>
+                            public
+                        </th>
+                        <td>
+                                                                                            
+                                                    </td>
+                    </tr>
+                            </table>
+        </aside>
+    </div>
+
+                                    <div class="row-fluid">
+        <div class="span8 content class">
+            <a id="method_isSingular" name="method_isSingular" class="anchor"></a>
+            <article class="method">
+                <h3 class="public ">isSingular()</h3>
+                <a href="#source-view" role="button" class="pull-right btn" data-toggle="modal" style="font-size: 1.1em; padding: 9px 14px"><i class="icon-code"></i></a>
+                <pre class="signature" style="margin-right: 54px;">isSingular(  <span class="argument">$unit_name</span>) : boolean</pre>
+                <p><em>Determine if unit&#039;s name is the plural name (foot = true)</em></p>
+                
+
+                                    <h4>Parameters</h4>
+                    <table class="table table-condensed table-hover">
+                                                    <tr>
+                                <td></td>
+                                <td>$unit_name </td>
+                                <td></td>
+                            </tr>
+                                            </table>
+                
+                
+                                    <h4>Returns</h4>
+                    boolean
+                                    				
+                            </article>
+        </div>
+        <aside class="span4 detailsbar">
+            <h1><i class="icon-arrow-down"></i></h1>
+                                                            <dl>
+                                                                            </dl>
+            <h2>Tags</h2>
+            <table class="table table-condensed">
+                                    <tr>
+                        <th>
+                            public
+                        </th>
+                        <td>
+                                                                                            
+                                                    </td>
+                    </tr>
+                            </table>
+        </aside>
+    </div>
+
+                                    <div class="row-fluid">
+        <div class="span8 content class">
+            <a id="method_isPlural" name="method_isPlural" class="anchor"></a>
+            <article class="method">
+                <h3 class="public ">isPlural()</h3>
+                <a href="#source-view" role="button" class="pull-right btn" data-toggle="modal" style="font-size: 1.1em; padding: 9px 14px"><i class="icon-code"></i></a>
+                <pre class="signature" style="margin-right: 54px;">isPlural(  <span class="argument">$unit_name</span>) : boolean</pre>
+                <p><em>Determine if unit&#039;s name is the plural form (feet = true)</em></p>
+                
+
+                                    <h4>Parameters</h4>
+                    <table class="table table-condensed table-hover">
+                                                    <tr>
+                                <td></td>
+                                <td>$unit_name </td>
+                                <td></td>
+                            </tr>
+                                            </table>
+                
+                
+                                    <h4>Returns</h4>
+                    boolean
+                                    				
+                            </article>
+        </div>
+        <aside class="span4 detailsbar">
+            <h1><i class="icon-arrow-down"></i></h1>
+                                                            <dl>
+                                                                            </dl>
+            <h2>Tags</h2>
+            <table class="table table-condensed">
+                                    <tr>
+                        <th>
+                            public
+                        </th>
+                        <td>
+                                                                                            
+                                                    </td>
+                    </tr>
+                            </table>
+        </aside>
+    </div>
+
+                                    <div class="row-fluid">
+        <div class="span8 content class">
+            <a id="method_hasPlural" name="method_hasPlural" class="anchor"></a>
+            <article class="method">
+                <h3 class="public ">hasPlural()</h3>
+                <a href="#source-view" role="button" class="pull-right btn" data-toggle="modal" style="font-size: 1.1em; padding: 9px 14px"><i class="icon-code"></i></a>
+                <pre class="signature" style="margin-right: 54px;">hasPlural(  <span class="argument">$unit_name</span>) : boolean</pre>
+                <p><em>Determine if unit has a plural name (Celsius = false)</em></p>
+                
+
+                                    <h4>Parameters</h4>
+                    <table class="table table-condensed table-hover">
+                                                    <tr>
+                                <td></td>
+                                <td>$unit_name </td>
+                                <td></td>
+                            </tr>
+                                            </table>
+                
+                
+                                    <h4>Returns</h4>
+                    boolean
+                                    				
+                            </article>
+        </div>
+        <aside class="span4 detailsbar">
+            <h1><i class="icon-arrow-down"></i></h1>
+                                                            <dl>
+                                                                            </dl>
+            <h2>Tags</h2>
+            <table class="table table-condensed">
+                                    <tr>
+                        <th>
+                            public
+                        </th>
+                        <td>
+                                                                                            
+                                                    </td>
+                    </tr>
+                            </table>
+        </aside>
+    </div>
+
+                                    <div class="row-fluid">
+        <div class="span8 content class">
+            <a id="method_getSingular" name="method_getSingular" class="anchor"></a>
+            <article class="method">
+                <h3 class="public ">getSingular()</h3>
+                <a href="#source-view" role="button" class="pull-right btn" data-toggle="modal" style="font-size: 1.1em; padding: 9px 14px"><i class="icon-code"></i></a>
+                <pre class="signature" style="margin-right: 54px;">getSingular(  <span class="argument">$unit_name</span>) : string</pre>
+                <p><em>Return the singular for a unit (eg: &quot;feet&quot; =&gt; foot)</em></p>
+                
+
+                                    <h4>Parameters</h4>
+                    <table class="table table-condensed table-hover">
+                                                    <tr>
+                                <td></td>
+                                <td>$unit_name </td>
+                                <td></td>
+                            </tr>
+                                            </table>
+                
+                
+                                    <h4>Returns</h4>
+                    string
+                                            &mdash; <p>A unit's singular</p>
+                                    				
+                            </article>
+        </div>
+        <aside class="span4 detailsbar">
+            <h1><i class="icon-arrow-down"></i></h1>
+                                                            <dl>
+                                                                            </dl>
+            <h2>Tags</h2>
+            <table class="table table-condensed">
+                                    <tr>
+                        <th>
+                            public
+                        </th>
+                        <td>
+                                                                                            
+                                                    </td>
+                    </tr>
+                            </table>
+        </aside>
+    </div>
+
+                                    <div class="row-fluid">
+        <div class="span8 content class">
+            <a id="method_getPlural" name="method_getPlural" class="anchor"></a>
+            <article class="method">
+                <h3 class="public ">getPlural()</h3>
+                <a href="#source-view" role="button" class="pull-right btn" data-toggle="modal" style="font-size: 1.1em; padding: 9px 14px"><i class="icon-code"></i></a>
+                <pre class="signature" style="margin-right: 54px;">getPlural(  <span class="argument">$unit_name</span>) : string</pre>
+                <p><em>Return the plural for a unit (eg: &quot;meter&quot; =&gt; meters)</em></p>
+                
+
+                                    <h4>Parameters</h4>
+                    <table class="table table-condensed table-hover">
+                                                    <tr>
+                                <td></td>
+                                <td>$unit_name </td>
+                                <td></td>
+                            </tr>
+                                            </table>
+                
+                
+                                    <h4>Returns</h4>
+                    string
+                                            &mdash; <p>A unit's plural</p>
+                                    				
+                            </article>
+        </div>
+        <aside class="span4 detailsbar">
+            <h1><i class="icon-arrow-down"></i></h1>
+                                                            <dl>
+                                                                            </dl>
+            <h2>Tags</h2>
+            <table class="table table-condensed">
+                                    <tr>
+                        <th>
+                            public
+                        </th>
+                        <td>
+                                                                                            
+                                                    </td>
+                    </tr>
+                            </table>
+        </aside>
+    </div>
+
+                                    <div class="row-fluid">
+        <div class="span8 content class">
+            <a id="method_getUnitSymbol" name="method_getUnitSymbol" class="anchor"></a>
+            <article class="method">
+                <h3 class="public ">getUnitSymbol()</h3>
+                <a href="#source-view" role="button" class="pull-right btn" data-toggle="modal" style="font-size: 1.1em; padding: 9px 14px"><i class="icon-code"></i></a>
+                <pre class="signature" style="margin-right: 54px;">getUnitSymbol(  <span class="argument">$unit_name</span>) : string</pre>
+                <p><em>Return the symbol for a unit (eg: &quot;meter&quot; =&gt; m)</em></p>
+                
+
+                                    <h4>Parameters</h4>
+                    <table class="table table-condensed table-hover">
+                                                    <tr>
+                                <td></td>
+                                <td>$unit_name </td>
+                                <td></td>
+                            </tr>
+                                            </table>
+                
+                
+                                    <h4>Returns</h4>
+                    string
+                                            &mdash; <p>A unit symbol</p>
+                                    				
+                            </article>
+        </div>
+        <aside class="span4 detailsbar">
+            <h1><i class="icon-arrow-down"></i></h1>
+                                                            <dl>
+                                                                            </dl>
+            <h2>Tags</h2>
+            <table class="table table-condensed">
+                                    <tr>
+                        <th>
+                            public
+                        </th>
+                        <td>
+                                                                                            
+                                                    </td>
+                    </tr>
+                            </table>
+        </aside>
+    </div>
+
+                                    <div class="row-fluid">
+        <div class="span8 content class">
+            <a id="method_getPrefixSymbol" name="method_getPrefixSymbol" class="anchor"></a>
+            <article class="method">
+                <h3 class="public ">getPrefixSymbol()</h3>
+                <a href="#source-view" role="button" class="pull-right btn" data-toggle="modal" style="font-size: 1.1em; padding: 9px 14px"><i class="icon-code"></i></a>
+                <pre class="signature" style="margin-right: 54px;">getPrefixSymbol(  <span class="argument">$prefix_name</span>) : string</pre>
+                <p><em>Return the symbol for an exponential prefix (eg: &quot;milli&quot; =&gt; m)</em></p>
+                
+
+                                    <h4>Parameters</h4>
+                    <table class="table table-condensed table-hover">
+                                                    <tr>
+                                <td></td>
+                                <td>$prefix_name </td>
+                                <td></td>
+                            </tr>
+                                            </table>
+                
+                
+                                    <h4>Returns</h4>
+                    string
+                                            &mdash; <p>An exponent's prefix</p>
+                                    				
+                            </article>
+        </div>
+        <aside class="span4 detailsbar">
+            <h1><i class="icon-arrow-down"></i></h1>
+                                                            <dl>
+                                                                            </dl>
+            <h2>Tags</h2>
+            <table class="table table-condensed">
+                                    <tr>
+                        <th>
+                            private
+                        </th>
+                        <td>
+                                                                                            
+                                                    </td>
+                    </tr>
+                            </table>
+        </aside>
+    </div>
+
+                                    <div class="row-fluid">
+        <div class="span8 content class">
+            <a id="method_isBase" name="method_isBase" class="anchor"></a>
+            <article class="method">
+                <h3 class="public ">isBase()</h3>
+                <a href="#source-view" role="button" class="pull-right btn" data-toggle="modal" style="font-size: 1.1em; padding: 9px 14px"><i class="icon-code"></i></a>
+                <pre class="signature" style="margin-right: 54px;">isBase(  <span class="argument">$unit_name</span>) : boolean</pre>
+                <p><em>Determine if the unit is an SI base unit.</em></p>
+                
+
+                                    <h4>Parameters</h4>
+                    <table class="table table-condensed table-hover">
+                                                    <tr>
+                                <td></td>
+                                <td>$unit_name </td>
+                                <td></td>
+                            </tr>
+                                            </table>
+                
+                
+                                    <h4>Returns</h4>
+                    boolean
+                                    				
+                            </article>
+        </div>
+        <aside class="span4 detailsbar">
+            <h1><i class="icon-arrow-down"></i></h1>
+                                                            <dl>
+                                                                            </dl>
+            <h2>Tags</h2>
+            <table class="table table-condensed">
+                                    <tr>
+                        <th>
+                            public
+                        </th>
+                        <td>
+                                                                                            
+                                                    </td>
+                    </tr>
+                            </table>
+        </aside>
+    </div>
+
+                                    <div class="row-fluid">
+        <div class="span8 content class">
+            <a id="method_hasDimension" name="method_hasDimension" class="anchor"></a>
+            <article class="method">
+                <h3 class="public ">hasDimension()</h3>
+                <a href="#source-view" role="button" class="pull-right btn" data-toggle="modal" style="font-size: 1.1em; padding: 9px 14px"><i class="icon-code"></i></a>
+                <pre class="signature" style="margin-right: 54px;">hasDimension(  <span class="argument">$unit_name</span>) : boolean</pre>
+                <p><em>Not all units have dimensions (eg: percent)</em></p>
+                
+
+                                    <h4>Parameters</h4>
+                    <table class="table table-condensed table-hover">
+                                                    <tr>
+                                <td></td>
+                                <td>$unit_name </td>
+                                <td></td>
+                            </tr>
+                                            </table>
+                
+                
+                                    <h4>Returns</h4>
+                    boolean
+                                    				
+                            </article>
+        </div>
+        <aside class="span4 detailsbar">
+            <h1><i class="icon-arrow-down"></i></h1>
+                                                            <dl>
+                                                                            </dl>
+            <h2>Tags</h2>
+            <table class="table table-condensed">
+                                    <tr>
+                        <th>
+                            public
+                        </th>
+                        <td>
+                                                                                            
+                                                    </td>
+                    </tr>
+                            </table>
+        </aside>
+    </div>
+
+                                    <div class="row-fluid">
+        <div class="span8 content class">
+            <a id="method_findUnitByName" name="method_findUnitByName" class="anchor"></a>
+            <article class="method">
+                <h3 class="public ">findUnitByName()</h3>
+                <a href="#source-view" role="button" class="pull-right btn" data-toggle="modal" style="font-size: 1.1em; padding: 9px 14px"><i class="icon-code"></i></a>
+                <pre class="signature" style="margin-right: 54px;">findUnitByName(  <span class="argument">$unit_name</span>) : \hash</pre>
+                <p><em>Return the unit record for a unit name (&quot;feet&quot; =&gt; foot)</em></p>
+                
+
+                                    <h4>Parameters</h4>
+                    <table class="table table-condensed table-hover">
+                                                    <tr>
+                                <td></td>
+                                <td>$unit_name </td>
+                                <td></td>
+                            </tr>
+                                            </table>
+                
+                
+                                    <h4>Returns</h4>
+                    \hash
+                                            &mdash; <p>A unit record.</p>
+                                    				
+                            </article>
+        </div>
+        <aside class="span4 detailsbar">
+            <h1><i class="icon-arrow-down"></i></h1>
+                                                            <dl>
+                                                                            </dl>
+            <h2>Tags</h2>
+            <table class="table table-condensed">
+                                    <tr>
+                        <th>
+                            private
+                        </th>
+                        <td>
+                                                                                            
+                                                    </td>
+                    </tr>
+                            </table>
+        </aside>
+    </div>
+
+                                    <div class="row-fluid">
+        <div class="span8 content class">
+            <a id="method_findUnitBySymbol" name="method_findUnitBySymbol" class="anchor"></a>
+            <article class="method">
+                <h3 class="public ">findUnitBySymbol()</h3>
+                <a href="#source-view" role="button" class="pull-right btn" data-toggle="modal" style="font-size: 1.1em; padding: 9px 14px"><i class="icon-code"></i></a>
+                <pre class="signature" style="margin-right: 54px;">findUnitBySymbol(  <span class="argument">$unit_symbol</span>) : \hash</pre>
+                <p><em>Return the unit record for a unit symbol (&quot;ft&quot; =&gt; foot)</em></p>
+                
+
+                                    <h4>Parameters</h4>
+                    <table class="table table-condensed table-hover">
+                                                    <tr>
+                                <td></td>
+                                <td>$unit_symbol </td>
+                                <td></td>
+                            </tr>
+                                            </table>
+                
+                
+                                    <h4>Returns</h4>
+                    \hash
+                                            &mdash; <p>A unit record.</p>
+                                    				
+                            </article>
+        </div>
+        <aside class="span4 detailsbar">
+            <h1><i class="icon-arrow-down"></i></h1>
+                                                            <dl>
+                                                                            </dl>
+            <h2>Tags</h2>
+            <table class="table table-condensed">
+                                    <tr>
+                        <th>
+                            private
+                        </th>
+                        <td>
+                                                                                            
+                                                    </td>
+                    </tr>
+                            </table>
+        </aside>
+    </div>
+
+                                    <div class="row-fluid">
+        <div class="span8 content class">
+            <a id="method_findPrefixByName" name="method_findPrefixByName" class="anchor"></a>
+            <article class="method">
+                <h3 class="public ">findPrefixByName()</h3>
+                <a href="#source-view" role="button" class="pull-right btn" data-toggle="modal" style="font-size: 1.1em; padding: 9px 14px"><i class="icon-code"></i></a>
+                <pre class="signature" style="margin-right: 54px;">findPrefixByName(  <span class="argument">$prefix_name</span>) : \hash</pre>
+                <p><em>Return the exponential record for a standard prefix (ie: &quot;milli&quot;)</em></p>
+                
+
+                                    <h4>Parameters</h4>
+                    <table class="table table-condensed table-hover">
+                                                    <tr>
+                                <td></td>
+                                <td>$prefix_name </td>
+                                <td></td>
+                            </tr>
+                                            </table>
+                
+                
+                                    <h4>Returns</h4>
+                    \hash
+                                            &mdash; <p>A prefix record.</p>
+                                    				
+                            </article>
+        </div>
+        <aside class="span4 detailsbar">
+            <h1><i class="icon-arrow-down"></i></h1>
+                                                            <dl>
+                                                                            </dl>
+            <h2>Tags</h2>
+            <table class="table table-condensed">
+                                    <tr>
+                        <th>
+                            private
+                        </th>
+                        <td>
+                                                                                            
+                                                    </td>
+                    </tr>
+                            </table>
+        </aside>
+    </div>
+
+                                    <div class="row-fluid">
+        <div class="span8 content class">
+            <a id="method_findPrefixBySymbol" name="method_findPrefixBySymbol" class="anchor"></a>
+            <article class="method">
+                <h3 class="public ">findPrefixBySymbol()</h3>
+                <a href="#source-view" role="button" class="pull-right btn" data-toggle="modal" style="font-size: 1.1em; padding: 9px 14px"><i class="icon-code"></i></a>
+                <pre class="signature" style="margin-right: 54px;">findPrefixBySymbol(  <span class="argument">$prefix_symbol</span>) : \hash</pre>
+                <p><em>Return the exponential record for a standard prefix (ie: &quot;m&quot;, for milli)</em></p>
+                
+
+                                    <h4>Parameters</h4>
+                    <table class="table table-condensed table-hover">
+                                                    <tr>
+                                <td></td>
+                                <td>$prefix_symbol </td>
+                                <td></td>
+                            </tr>
+                                            </table>
+                
+                
+                                    <h4>Returns</h4>
+                    \hash
+                                            &mdash; <p>A prefix record.</p>
+                                    				
+                            </article>
+        </div>
+        <aside class="span4 detailsbar">
+            <h1><i class="icon-arrow-down"></i></h1>
+                                                            <dl>
+                                                                            </dl>
+            <h2>Tags</h2>
+            <table class="table table-condensed">
+                                    <tr>
+                        <th>
+                            private
+                        </th>
+                        <td>
+                                                                                            
+                                                    </td>
+                    </tr>
+                            </table>
+        </aside>
+    </div>
+
+                                    <div class="row-fluid">
+        <div class="span8 content class">
+            <a id="method_applyPrefix" name="method_applyPrefix" class="anchor"></a>
+            <article class="method">
+                <h3 class="public ">applyPrefix()</h3>
+                <a href="#source-view" role="button" class="pull-right btn" data-toggle="modal" style="font-size: 1.1em; padding: 9px 14px"><i class="icon-code"></i></a>
+                <pre class="signature" style="margin-right: 54px;">applyPrefix(  <span class="argument">$str</span>) : string</pre>
+                <p><em>Replace a prefixed ID with its exponent multiplier and core ID</em></p>
+                
+
+                                    <h4>Parameters</h4>
+                    <table class="table table-condensed table-hover">
+                                                    <tr>
+                                <td></td>
+                                <td>$str </td>
+                                <td></td>
+                            </tr>
+                                            </table>
+                
+                
+                                    <h4>Returns</h4>
+                    string
+                                            &mdash; <p>An altered definition</p>
+                                    				
+                            </article>
+        </div>
+        <aside class="span4 detailsbar">
+            <h1><i class="icon-arrow-down"></i></h1>
+                                                            <dl>
+                                                                            </dl>
+            <h2>Tags</h2>
+            <table class="table table-condensed">
+                                    <tr>
+                        <th>
+                            private
+                        </th>
+                        <td>
+                                                                                            
+                                                    </td>
+                    </tr>
+                            </table>
+        </aside>
+    </div>
+
+                                    <div class="row-fluid">
+        <div class="span8 content class">
+            <a id="method_applyDefinition" name="method_applyDefinition" class="anchor"></a>
+            <article class="method">
+                <h3 class="public ">applyDefinition()</h3>
+                <a href="#source-view" role="button" class="pull-right btn" data-toggle="modal" style="font-size: 1.1em; padding: 9px 14px"><i class="icon-code"></i></a>
+                <pre class="signature" style="margin-right: 54px;">applyDefinition(  <span class="argument">$str</span>) : string</pre>
+                <p><em>Replace an ID with its conversion definition.</em></p>
+                
+
+                                    <h4>Parameters</h4>
+                    <table class="table table-condensed table-hover">
+                                                    <tr>
+                                <td></td>
+                                <td>$str </td>
+                                <td></td>
+                            </tr>
+                                            </table>
+                
+                
+                                    <h4>Returns</h4>
+                    string
+                                            &mdash; <p>Altered input string.</p>
+                                    				
+                            </article>
+        </div>
+        <aside class="span4 detailsbar">
+            <h1><i class="icon-arrow-down"></i></h1>
+                                                            <dl>
+                                                                            </dl>
+            <h2>Tags</h2>
+            <table class="table table-condensed">
+                                    <tr>
+                        <th>
+                            private
+                        </th>
+                        <td>
+                                                                                            
+                                                    </td>
+                    </tr>
+                            </table>
+        </aside>
+    </div>
+
+                                    <div class="row-fluid">
+        <div class="span8 content class">
+            <a id="method_getValueFromId" name="method_getValueFromId" class="anchor"></a>
+            <article class="method">
+                <h3 class="public ">getValueFromId()</h3>
+                <a href="#source-view" role="button" class="pull-right btn" data-toggle="modal" style="font-size: 1.1em; padding: 9px 14px"><i class="icon-code"></i></a>
+                <pre class="signature" style="margin-right: 54px;">getValueFromId(  <span class="argument">$str</span>) : string</pre>
+                <p><em>Convert a unit identifier to it&#039;s ToSI equivalent value, or alternate def</em></p>
+                
+
+                                    <h4>Parameters</h4>
+                    <table class="table table-condensed table-hover">
+                                                    <tr>
+                                <td></td>
+                                <td>$str </td>
+                                <td></td>
+                            </tr>
+                                            </table>
+                
+                
+                                    <h4>Returns</h4>
+                    string
+                                            &mdash; <p>Upconverted ID</p>
+                                    				
+                            </article>
+        </div>
+        <aside class="span4 detailsbar">
+            <h1><i class="icon-arrow-down"></i></h1>
+                                                            <dl>
+                                                                            </dl>
+            <h2>Tags</h2>
+            <table class="table table-condensed">
+                                    <tr>
+                        <th>
+                            private
+                        </th>
+                        <td>
+                                                                                            
+                                                    </td>
+                    </tr>
+                            </table>
+        </aside>
+    </div>
+
+                                                                    </div>
+    </section>
+
+    <div id="source-view" class="modal hide fade" tabindex="-1" role="dialog" aria-labelledby="source-view-label" aria-hidden="true">
+        <div class="modal-header">
+            <button type="button" class="close" data-dismiss="modal" aria-hidden="true">×</button>
+            <h3 id="source-view-label">Units.php</h3>
+        </div>
+        <div class="modal-body">
+            <pre data-src="../files/Units.php.txt" class="language-php line-numbers"></pre>
+        </div>
+    </div>
+
+    <footer class="row-fluid">
+        <section class="span10 offset2">
+            <section class="row-fluid">
+                <section class="span10 offset1">
+                    <section class="row-fluid footer-sections">
+                        <section class="span4">
+                                                        <h1><i class="icon-code"></i></h1>
+                            <div>
+                                <ul>
+                                                                    </ul>
+                            </div>
+                        </section>
+                        <section class="span4">
+                                                        <h1><i class="icon-bar-chart"></i></h1>
+                            <div>
+                                <ul>
+                                    <li><a href="../graphs/class.html">Class Hierarchy Diagram</a></li>
+                                </ul>
+                            </div>
+                        </section>
+                        <section class="span4">
+                                                        <h1><i class="icon-pushpin"></i></h1>
+                            <div>
+                                <ul>
+                                    <li><a href="../reports/errors.html">Errors</a></li>
+                                    <li><a href="../reports/markers.html">Markers</a></li>
+                                </ul>
+                            </div>
+                        </section>
+                    </section>
+                </section>
+            </section>
+            <section class="row-fluid">
+                <section class="span10 offset1">
+                    <hr />
+                    Documentation is powered by <a href="http://www.phpdoc.org/">phpDocumentor </a> and authored
+                    on November 21st, 2016 at 19:46.
+                </section>
+            </section>
+        </section>
+    </footer>
+</div>
+
+</body>
+</html>

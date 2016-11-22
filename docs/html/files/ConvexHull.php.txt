@@ -1,0 +1,132 @@
+<?php
+/**
+ * Compute a convex hull from a set of points
+ *
+ * @file ConvexHull.php
+ * @package Math
+ * @date 2011-09-07 14:44 HST
+ * @author Paul Reuter
+ * @version 1.1.0
+ *
+ * @modifications <pre>
+ * 1.0.0 - 2007-10-01 - Created
+ * 1.1.0 - 2011-09-07 - Redesigned
+ * </pre>
+ */
+
+
+/**
+ * @package Math
+ */
+class ConvexHull { 
+
+
+  /**
+   * Compute angle A-B-C.
+   * @access private
+   */
+  function angle_abc($xa,$ya,$xb,$yb,$xc,$yc) { 
+    $a0 = atan2($ya-$yb,$xa-$xb);
+    $a1 = atan2($yc-$yb,$xc-$xb);
+    return ($a0-$a1);
+  }
+
+
+  /**
+   * @param float $y array of y-coordinates.
+   * @param float $x array of x-coordinates.
+   * @return array of (x,y) tuples containing the hull.
+   */
+  function calc($y,$x=null) { 
+    if( !is_array($y) ) { 
+      return false;
+    }
+    $x = ($x===null) ? array_keys($y) : $x;
+    if( !is_array($x) ) { 
+      return false;
+    }
+    $y = array_values($y);
+    if( count($y) < 3 ) { 
+      return false;
+    }
+
+    // Sort ASC, bind points.
+    array_multisort($x,$y);
+
+    // Compute angle from left edge to i'th point, CCW
+    $x0 = current($x);
+    $y0 = current($y);
+    $angles = array();
+    foreach( array_keys($x) as $i ) { 
+      // Compute the arc angle between the lower-left and current point
+      $angles[$i] = atan2($y[$i]-$y0,$x[$i]-$x0); 
+    }
+    asort($angles);
+
+    // Initialize alt point
+    $x1 = $x0;
+    $y1 = $y0;
+
+    // Store first hull point (bottom-left)
+    $hull = array( array($x0,$y0) );
+
+    foreach( array_keys($angles) as $i ) { 
+      if( $i==0 ) { 
+        continue;
+      }
+      $xi = $x[$i];
+      $yi = $y[$i];
+      while( !self::isRight($x0,$y0,$x1,$y1,$xi,$yi) ) { 
+        array_pop($hull);
+        list($x0,$y0) = array_pop($hull);
+        list($x1,$y1) = (empty($hull)) ? array($x0,$y0) : end($hull);
+        $hull[] = array($x0,$y0);
+      }
+      $hull[] = array($xi,$yi);
+      $x1 = $x0;
+      $y1 = $y0;
+      $x0 = $xi;
+      $y0 = $yi;
+    }
+    return $hull;
+  } // END: calc($y,$x=null)
+
+
+  /**
+   * Test if point [xi,yi] lies to the right of the line <x0,y0>,<x1,y1>
+   *
+   * @access protected
+   * @param float $x0 X-coord of new point
+   * @param float $y0 Y-coord of new point
+   * @param float $x1 X-coord of old point
+   * @param float $y1 Y-coord of old point
+   * @param float $xi X-coord of target new point
+   * @param float $yi Y-coord of target new point
+   * @return bool True of new point is to the right of the old
+   */
+  function isRight($x0,$y0,$x1,$y1,$xi,$yi) { 
+    if( $x0==$x1 && $y0==$y1 ) { 
+      return true;
+    }
+    $rad = self::angle_abc($x0,$y0,$x1,$y1,$xi,$yi);
+    $rad = fmod($rad+M_PI,2*M_PI);
+    return ($rad>0 && $rad<M_PI);
+  }
+
+} // END: class ConvexHull
+
+
+/*
+$x = array();
+$y = array();
+for($i=0; $i<25; $i++) { 
+  $x[] = rand(0,50);
+  $y[] = rand(0,50);
+}
+$cvx = new ConvexHull();
+print_r( $cvx->calc($x,$y) );
+*/
+
+// EOF -- ConvexHull.php
+?>
+

@@ -1,0 +1,339 @@
+<?php
+/**
+ * Class that provides helpful FTP reading features.
+ *
+ * @file FtpReader.php
+ * @date 2014-01-12 12:12 PST
+ * @author Paul Reuter
+ * @version 1.0.6
+ *
+ * @TODO if new FtpReader() -> ls('ftp://full.url/path/') :: Parse host:port, user:pass.
+ * 
+ * @modifications <pre>
+ * 1.0.0 - 2012-07-12 - Created, but untested
+ * 1.0.1 - 2012-08-31 - Debugged! First decent release.
+ * 1.0.2 - 2012-09-13 - BugFix: FromUri wasn't complete. Now it is.
+ * 1.0.3 - 2012-09-13 - Add: isDir($dpath=null)
+ * 1.0.4 - 2012-09-13 - BugFix: canonical path from uri, add: error logging.
+ * 1.0.5 - 2012-09-13 - BugFix: filemtime failed to reset connection.
+ * 1.0.6 - 2014-01-12 - BugFix: stdout not reset after GET request.
+ * </pre>
+ */
+
+class FtpReader {
+  var $host = 'localhost';
+  var $port = 21;
+  var $user = "Anonymous";
+  var $pass = "ftpReader@ucsd.edu";
+  var $path = '/';
+
+  var $DEBUG = false;
+  var $forceUserPass = false;
+  var $_ch = null;
+
+  function FtpReader($host='localhost',$port=21) { 
+    $this->setHost($host,$port);
+    $this->m_initCurl();
+    return $this;
+  } // END: function FtpReader($host,$port=21)
+
+  function FromUri($uri) { 
+    $ftp = new FtpReader();
+    $ftp->m_initCurl();
+    $parts = parse_url($uri);
+    if( isset($parts['scheme']) && strtolower($parts['scheme']) !== 'ftp' ) { 
+      return false;
+    }
+    if( isset($parts['host']) ) { 
+      $ftp->host = $parts['host'];
+    }
+    if( isset($parts['port']) ) { 
+      $ftp->port = $parts['port'];
+    }
+    if( isset($parts['user']) ) { 
+      $ftp->user = $parts['user'];
+    }
+    if( isset($parts['pass']) ) { 
+      $ftp->pass = $parts['pass'];
+    }
+    if( isset($parts['path']) ) { 
+      $ftp->path = rtrim($parts['path'],'/');
+    }
+    return $ftp;
+  } // END: function FromUri($uri)
+
+  function setHost($host,$port=21) { 
+    $this->host = $host;
+    return $this->setPort($port);
+  } // END: function setHost($host,$port=21)
+
+  function setPort($port) { 
+    $this->port = intVal($port);
+    return (intVal($port)>0);
+  } // END: function setPort($port)
+
+  function setUser($user,$pass=null) { 
+    $this->user = $user;
+    if( $pass!==null ) { 
+      return $this->setPassword($pass);
+    }
+    return true;
+  } // END: function setUser($user,$pass=null)
+
+  function setPassword($pass) { 
+    $this->pass = $pass;
+    return true;
+  } // END: function setPassword($pass)
+
+  function setPath($dpath) { 
+    return $this->cd($dpath);
+  } // END: function setPath($dpath)
+
+  function filemtime($fpath) { 
+    $fpath = $this->pathToUri($fpath);
+    if( $this->DEBUG ) { 
+      error_log("filemtime($fpath)");
+    }
+    $this->m_initCurl();
+    curl_setopt($this->_ch,CURLOPT_URL,$fpath);
+    // NB: NOBODY changes method to HEAD, cannot be muted.
+    // We must catch the response and ignore it (RETURNTRANSFER=1)
+    // NB: if $fpath is a directory path, user must append '/'.
+    curl_setopt($this->_ch,CURLOPT_NOBODY,true);
+    curl_setopt($this->_ch,CURLOPT_FILETIME,true);
+    curl_setopt($this->_ch,CURLOPT_RETURNTRANSFER,1);
+    curl_setopt($this->_ch,CURLOPT_BINARYTRANSFER,1);
+    curl_exec($this->_ch);
+    // NB: Must rewind settings to allow ls() to work again.
+    curl_setopt($this->_ch,CURLOPT_NOBODY,false);
+    curl_setopt($this->_ch,CURLOPT_HTTPGET,true);
+    curl_setopt($this->_ch,CURLOPT_FILETIME,false);
+    $this->error = curl_error($this->_ch);
+    if( $this->error ) { 
+      error_log("FILEMTIME $fpath: ".$this->error);
+      return false;
+    }
+    return curl_getinfo($this->_ch,CURLINFO_FILETIME);
+  } // END: function filemtime($uri)
+
+  function isDir($dpath=null) { 
+    $dpath = rtrim($this->pathToUri($dpath),'/').'/';
+    $this->m_initCurl();
+    curl_setopt($this->_ch,CURLOPT_URL,$dpath);
+    curl_setopt($this->_ch,CURLOPT_FTPLISTONLY,true);
+    curl_setopt($this->_ch,CURLOPT_RETURNTRANSFER,1);
+    curl_setopt($this->_ch,CURLOPT_BINARYTRANSFER,0);
+    curl_exec($this->_ch);
+    $errno = curl_errno($this->_ch);
+    curl_setopt($this->_ch,CURLOPT_FTPLISTONLY,false);
+    return ($errno==0);
+  } // END: function isDir($dpath=null)
+
+  function ls($dpath=null) { 
+    $dpath = rtrim($this->pathToUri($dpath),'/').'/';
+    if( $this->DEBUG ) { 
+      error_log("ls($dpath)");
+    }
+    $this->m_initCurl();
+    curl_setopt($this->_ch,CURLOPT_URL,$dpath);
+    curl_setopt($this->_ch,CURLOPT_FTPLISTONLY,true);
+    curl_setopt($this->_ch,CURLOPT_TRANSFERTEXT,1);
+    curl_setopt($this->_ch,CURLOPT_RETURNTRANSFER,1);
+    curl_setopt($this->_ch,CURLOPT_BINARYTRANSFER,0);
+
+    //curl_setopt($this->_ch,CURLOPT_FRESH_CONNECT,1);
+    //curl_setopt($this->_ch,CURLOPT_FILE,fopen('php://stdout','w')); 
+    //curl_setopt($this->_ch,CURLOPT_HEADER,0);
+
+    $result = curl_exec($this->_ch);
+    curl_setopt($this->_ch,CURLOPT_FTPLISTONLY,false);
+    curl_setopt($this->_ch,CURLOPT_TRANSFERTEXT,0);
+    $this->error = curl_errno($this->_ch);
+    if( $this->error ) { 
+      error_log("LS $dpath: ".$this->error);
+    }
+    return explode("\n",rtrim($result));
+  } // END: function ls($dpath=null)
+
+  function cd($dpath) { 
+    $this->path = $this->m_canonical($dpath);
+    return (!empty($this->path)) ? true : false;
+  } // END: function cd($dpath)
+
+  function cwd() { 
+    return $this->path;
+  } // END: function cwd()
+
+  function get($rpath,$lpath=null,$ifModSince=0) { 
+    $lpath = (empty($lpath)) ? basename($rpath) : $lpath;
+    $rpath = $this->pathToUri($rpath);
+    if( $this->DEBUG ) { 
+      error_log("GET($rpath,$lpath,$ifModSince)");
+    }
+    $this->m_initCurl();
+    if( $ifModSince <= 0 || $this->filemtime($rpath) > $ifModSince ) { 
+      //echo("modified($rpath) => ".$this->filemtime($rpath)."\n");
+      $fp = self::fopen($lpath);
+      if( !$fp ) { 
+        return false;
+      }
+      curl_setopt($this->_ch,CURLOPT_URL,$rpath);
+      curl_setopt($this->_ch,CURLOPT_RETURNTRANSFER, 0);
+      curl_setopt($this->_ch,CURLOPT_TRANSFERTEXT,0);
+      curl_setopt($this->_ch,CURLOPT_HEADER,0);
+      curl_setopt($this->_ch,CURLOPT_FILE,$fp);
+      curl_exec($this->_ch);
+      $this->error = curl_error($this->_ch);
+      if( $this->error ) { 
+        error_log("GET $rpath: ".$this->error);
+      }
+      fclose($fp);
+      //curl_setopt($this->_ch,CURLOPT_FILE,fopen('php://stdout','w')); 
+      curl_setopt($this->_ch,CURLOPT_RETURNTRANSFER, 0);
+      return (empty($this->error));
+    }
+    return true;
+  } // END: function get($uri,$fpath,$ifModSince=0)
+
+  function newer($uri,$fpath) { 
+    $mtime = (is_readable($fpath)) ? filemtime($fpath) : 0;
+    return $this->get($uri,$fpath,$mtime);
+  } // END: function newer($uri,$fpath)
+
+  function fetch($uri) { 
+    $uri = $this->pathToUri($uri);
+    if( $this->DEBUG ) { 
+      error_log("fetch($uri)");
+    }
+    $this->m_initCurl();
+    curl_setopt($this->_ch,CURLOPT_URL,$uri);
+    curl_setopt($this->_ch,CURLOPT_FILE,fopen('php://stdout','w')); 
+    curl_setopt($this->_ch,CURLOPT_RETURNTRANSFER, 1);
+    curl_setopt($this->_ch,CURLOPT_BINARYTRANSFER, 1);
+    curl_setopt($this->_ch,CURLOPT_TRANSFERTEXT,0);
+    curl_setopt($this->_ch,CURLOPT_HEADER,0);
+    $response = curl_exec($this->_ch);
+    $this->error = curl_error($this->_ch);
+    if( $this->error ) { 
+      error_log("FETCH $uri: ".$this->error);
+    }
+    return (empty($this->error)) ? $response : false;
+  } // END: function fetch($uri)
+
+  function isAnonymous() { 
+    return (trim(strtolower($this->user))=='anonymous');
+  } // END: function isAnonymous()
+
+  function pathToUri($fpath=null) { 
+    $fpath = $this->m_canonical($fpath);
+    $parts = array('ftp://');
+    if( !$this->isAnonymous() || $this->forceUserPass ) { 
+      $parts[] = rawurlencode($this->user).':'.rawurlencode($this->pass).'@';
+    }
+    $parts[] = $this->host;
+    if( $this->port != 21 ) { 
+      $parts[] = ':'.$this->port;
+    }
+    $parts[] = $fpath;
+    return implode('',$parts);
+  } // END: function pathToUri($fpath=null)
+
+
+  function m_initCurl() { 
+    if( $this->_ch !== null && is_resource($this->_ch) ) { 
+      curl_setopt($this->_ch,CURLOPT_VERBOSE,$this->DEBUG);
+      return true;
+    }
+    $this->_ch = curl_init();
+    curl_setopt($this->_ch,CURLOPT_TRANSFERTEXT,false);
+    curl_setopt($this->_ch,CURLOPT_VERBOSE,$this->DEBUG);
+    register_shutdown_function(array($this,'m_shutdown'));
+    return true;
+  } // END: function m_initCurl()
+
+  function m_shutdown() { 
+    if( is_resource($this->_ch) ) { 
+      curl_close($this->_ch);
+    }
+    $this->_ch = null;
+    return true;
+  } // END: function m_shutdown()
+
+  function m_canonical($dpath='.') { 
+    // Need to remove uri components that aren't the path.
+    if( strpos(strtolower($dpath),'ftp://') === 0 ) { 
+      $tmp = parse_url($dpath);
+      $dpath = (isset($tmp['path'])) ? rtrim($tmp['path'],'/') : '/';
+    }
+
+    // Now we can swap directory separators, and combine double slashes.
+    $dpath = str_replace(array("\\","//"),"/",$dpath);
+    $dpath = rtrim($dpath,'/');
+
+    // Absolute path. All good.
+    if( strpos($dpath,'/') === 0 ) { 
+      return $dpath;
+    }
+    // Empty path. Return the '.' indicating current directory.
+    if( strlen((string)$dpath) === 0 || $dpath === '.' ) { 
+      return $this->path;
+    }
+
+    // All paths after this are relative, so prepend cwd() to path.
+    $dpath = $this->path.'/'.$dpath;
+
+    // Scan for '.' and '..' in each path part. 
+    // Ignore '.' and remove preceeding directories for '..'.
+    // Excess '..' paths are ignored.
+    $parts = explode('/',$dpath);
+
+    // But first, a sanity check. Root should be first.
+    if( empty($parts) || !empty($parts[0]) ) { 
+      return '/';
+    }
+
+    $keep = array();
+    for($i=1,$n=count($parts); $i<$n; $i++) { 
+      if( $parts[$i] == '..' ) { 
+        if( !empty($keep) ) { 
+          array_pop($keep);
+        }
+      } else if( $parts[$i] !== '.' ) { 
+        $keep[] = $parts[$i];
+      }
+    }
+    return '/'.implode('/',$keep);
+  } // END: function m_canonical($dpath='.')
+
+  
+  function fopen($fpath,$mode="wb",$dmode=0775,$fmode=0644) { 
+    if( !self::mkdir(dirname($fpath),$dmode) ) { 
+      return false;
+    }
+    $fp = fopen($fpath,$mode);
+    if( !$fp || fwrite($fp,'')===false || !fclose($fp) ) { 
+      return false;
+    }
+    if( !chmod($fpath,$fmode) ) { 
+      return false;
+    }
+    return fopen($fpath,$mode);
+  } // END: function fopen($fpath,$mode="wb",$dmode=0775,$fmode=0644)
+
+
+  function mkdir($dpath,$mode=0775) { 
+    if( empty($dpath) ) { 
+      return (is_dir('.')) ? true : mkdir('.',$mode);
+    }
+    if( is_dir($dpath) ) { 
+      return true;
+    }
+    return (self::mkdir(dirname($dpath),$mode) && mkdir($dpath,$mode));
+  } // END: function mkdir($dpath,$mode=0755)
+
+
+} // END: class FtpReader
+
+// EOF -- FtpReader.php
+?>
+

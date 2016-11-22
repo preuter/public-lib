@@ -1,0 +1,198 @@
+<?php
+/**
+ * Perform polynomial regression, compute OLS, QoF, and fit coefficients
+ *
+ * @file Polyfit.php
+ * @date 2014-01-16 16:17 PST
+ * @author Paul Reuter
+ * @version 1.0.2
+ *
+ * @depends MultipleRegression
+ *
+ * @modifications <pre>
+ * 1.0.0 - 2011-08-25 - created
+ * 1.0.1 - 2011-08-27 - Added some comments, created Polyfit class.
+ * 1.0.2 - 2014-01-16 - BugFix: Logfit param unused.
+ * </pre>
+ */
+
+/**
+ * Process object returned as a result of a curve fit
+ * @package Math
+ */
+class Fit { 
+  var $R2;   // Ordinary Least Squares residual
+  var $r2;   // Quality of fit
+  var $coef; // Parameter vector: c0, c1... cn?
+
+  function Fit($coef=null,$x=null,$y=null) { 
+    if( $coef !== null ) { 
+      $this->coef = $coef;
+      $yh = $this->arrayCalc($x);
+      $this->R2 = $this->ols($y,$yh);
+      $this->r2 = $this->qof($y,$yh);
+    }
+    return $this;
+  } // END: constructor Fit($coef=null,$x=null,$y=null)
+
+
+  /** 
+   * The quality of fit is judged by the coefficient of determination
+   * @see http://www.chem.uoa.gr/applets/AppletPoly/Appl_Poly2.html
+   *
+   * @param array $y Array of observed y values
+   * @param array $y0 Array of expected (hypothetical) y values
+   */
+  function qof($y,$y0) { 
+    $num = 0;
+    $den = 0;
+    $meany = $this->mean($y);
+    foreach( array_keys($y) as $i ) { 
+      // SUM {  [theory - mean(actual)]^2 / [actual-mean(actual)]^2  }
+      $num += ($y0[$i] - $meany) * ($y0[$i]-$meany);
+      $den += ($y[$i] - $meany) * ($y[$i]-$meany);
+    }
+    // coefficient of determination: r^2
+    return ($den!=0) ? $num/$den : 0;
+  } // END: function qof($y,$y0)
+
+
+  function mean($a) { 
+    return (count($a)>0) ? array_sum($a)/count($a) : 0;
+  } // END: function mean($a)
+
+
+  /**
+   * Compute Ordinary least squares.
+   * @param array $y Array of observed y values
+   * @param array $y0 Array of expected y values
+   */
+  function ols($y,$y0) { 
+    $sum = 0;
+    foreach( array_keys($y) as $i ) { 
+      $sum += ($y[$i]-$y0[$i]) * ($y[$i]-$y0[$i]);
+    }
+    return $sum;
+  } // END: function ols($y,$y0)
+
+
+  /**
+   * Evaluate the fit for a given x vector
+   * Y = coef[0] + coef[1] * x[0] + coef[2] * x[1] ... 
+   */
+  function calc($x) { 
+    $y = $this->coef[0];
+
+    if( !is_array($x) ) { 
+      // X may be a single value.  If so, compute X^2, X^3...,X^n
+      $xi = 1;
+      for($i=1,$n=count($this->coef); $i<$n; $i++) { 
+        $xi *= $x;
+        $y += $this->coef[$i] * $xi;
+      }
+      return $y;
+    }
+
+    // X is a parameter vector, multiply each X[i] with coef[i+1]
+    foreach( array_keys($x) as $i) { 
+      $y += $this->coef[$i+1] * $x[$i];
+    }
+    return $y;
+  } // END: function calc($x)
+
+
+  function arrayCalc($xs) { 
+    $ys = array();
+    foreach(array_keys($xs) as $i) { 
+      $ys[$i] = $this->calc($xs[$i]);
+    }
+    return $ys;
+  } // END: function arrayCalc($xs)
+
+} // END: class Fit
+
+
+
+/*
+ * @package Math
+ */
+class Polyfit { 
+
+  /**
+   * Fit data to equation: c0 x^0 + c1 x^1 + c2 x^2
+   */
+  function fit($x,$y,$deg=1) {
+    // Build a matrix from input x, s.t. [[x,x,..,x],[x^2,x^2,...,x^2],...]
+    // Number of columns in x-matrix: $deg
+    $X = array($x);
+    // begin by creating rows of x, then x^2, then x^3..., x^deg
+    $tmp = $x;
+    for($i=1; $i<$deg;$i++) { 
+      foreach( array_keys($x) as $j ) { 
+        $tmp[$j] *= $x[$j];
+      }
+      $X[] = $tmp;
+    }
+    // Transpose the matrix to obtain columns of x, x^2, ... x^deg
+    $X = MultipleRegression::transpose($X);
+
+    // Use multiple regression to solve the polynomial
+    $mr = MultipleRegression::FromXY($X,$y);
+    // Create a best-fit object, 
+    // Passing in beta weights for [x^0,x^1...,x^deg], original x, y values.
+    $fit = new Fit($mr->getParameters(),$x,$y);
+    $fit->eq = $mr->getEquation();
+    return $fit;
+  } // END: function fit($x,$y,$deg=1)
+
+} // END: class Polyfit
+
+
+/*
+ * @package Math
+ */
+class Logfit { 
+  /**
+   * Fit data to equation: c0 + log( c1 x )
+   * Note: This is not the same as Excel's logfit
+   */
+  function fit($x,$y) { 
+    $yln = array_map('exp',$y);
+    $fit = Polyfit::fit($x,$yln,1);
+    $fit->eq = sprintf("%f + log(%f*x)",log($fit->coef[0]), $fit->coef[1]);
+    return $fit;
+  } // END: function logfit($x,$y)
+
+} // END: class Logfit
+
+
+/*
+ * @package Math
+ */
+class Expfit { 
+  /**
+   * Fit data to equation: c0 + exp( c1 x )
+   * Note: This is not the same as Excel's expfit
+   */
+  function fit($x,$y) { 
+    // TODO: Fit data to equation c0 + c1 * exp( c2 * x)
+    //       Or c0 * exp( c1 * x) + c2
+    // TODO: detect and correct exponential orientation
+    // TODO: compute and remove y-intercept offset.
+    // TODO: include parameters in post-fit equation.
+    // TODO: explore logfit.
+    // http://www.filewatcher.com/p/octave-optim-1.2.2-1.fc18.i686.rpm.393124/usr/share/octave/packages/optim-1.2.2/expfit.m.html
+    // http://octave.sourceforge.net/optim/function/expfit.html
+    // http://www.statsci.org/other/prony.html
+    $yln = array_map('log',$y);
+    $fit = Polyfit::fit($x,$yln,1);
+    $fit->eq = sprintf("%f + exp(%f*x)",exp($fit->coef[0]), $fit->coef[1]);
+    return $fit;
+  } // END: function expfit($x,$y)
+
+} // END: class Expfit
+
+
+// EOF Polyfit.php
+?>
+
