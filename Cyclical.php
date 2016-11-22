@@ -1,0 +1,174 @@
+<?php
+/**
+ * Convert linear values that repeat to U and V unit circle components.
+ * Examples include:
+ *  + Time from [0-86400) to u-v repr.
+ *  + Day of year [1,366].
+ *
+ * @file Cyclical.php
+ * @date 2014-08-23 09:34 PDT
+ * @author Paul Reuter
+ * @version 1.0.1
+ *
+ * @modifications <pre>
+ * 1.0.0 - 2014-08-23 - Created
+ * 1.0.1 - 2014-08-23 - Add: nautical/cartesian conversions.
+ * </pre>
+ */
+
+
+/**
+ * Convert cyclical numbers to [u, v] vector representations.
+ */
+class Cyclical { 
+
+
+  /**
+   * Return an array of u, v components representing location on unit circle
+   * where $value is between $mn and $mx.  Note, $mx should be 1 unit larger
+   * than the maximum possible value.
+   *
+   * In a day, there are 1440 minutes. $mn = 0, $mx = 1440, 
+   * since 1440 would be the next day.
+   *
+   * Values larger than $mx or smaller than $mn will be wrapped.
+   * eg. Given: Value=3600, Range: [-180,180).
+   *     Value wraps to (300-(180--180)) = -60.
+   *
+   * @param float $value Number to convert from scalar to vector [u,v].
+   * @param float $mn Minimum value allowed in cycle range.
+   * @param float $mx Maximum value allowed in cycle range.
+   * @return float[2] array containing [u, v] vectorized cycling value.
+   * @see vectorize_clipped
+   */
+  function vectorize($value, $mn, $mx) { 
+    $span = ($mx-$mn);
+    while( $value < $mn ) { 
+      $value += $span;
+    }
+    while( $value >= $mx ) { 
+      $value -= $span;
+    }
+    $p = 2*M_PI*($value-$mn)/$span;
+    return array( round(cos($p), 14), round(sin($p), 14) );
+  } // END: function vectorize($value, $mn, $mx)
+
+
+  /**
+   * Convert a U, V vector representation to Nautical coordinates.
+   * Nautical coordinates have 0 deg at North, where cartesian is 90 deg.
+   *
+   * @param float $u U-value returned from vectorize.
+   * @param float $v V-value returned from vectorize.
+   * @return float [0,360) representation of degrees True North.
+   */
+  function uvToNautical($u, $v) { 
+    return self::cartesianToNautical( self::linearize($u,$v,0,360) );
+  } // END: function uvToNautical($u, $v)
+
+
+  /**
+   * Convert Nautical degrees (True North) to unit circle U, V components.
+   *
+   * @param float $value A value from [0, 360) degrees True North.
+   * @return float[2] Array of U, V unit-circle components.
+   */
+  function nauticalToUV($value) { 
+    return self::vectorize(self::nauticalToCartesian($value), 0, 360);
+  } // END: function nauticalToUV($value)
+
+
+  /**
+   * Convert Nautical coordiantes to Cartesian.
+   *
+   * @param float $value A value from [0,360) degrees True North.
+   * @return float [0,360) representation of degrees around unit circle.
+   * @see cartesianToNautical
+   * @see uvToNautical
+   * @see nauticalToUV
+   */
+  function nauticalToCartesian($value) { 
+    return fmod( (450.0-$value), 360.0 );
+  } // END: function nauticalToCartesian($value)
+
+
+  /**
+   * Convert Cartesian coordinates to Nautical coordinates.
+   *
+   * @param float $value A value from [0,360) degrees along unit circle.
+   * @return float [0,360) representation of degrees True North.
+   * @see uvToNautical
+   * @see nauticalToUV
+   */
+  function cartesianToNautical($value) { 
+    return fmod( (450.0-$value), 360.0 );
+  } // END: function cartesianToNautical($value)
+
+
+  /**
+   * Values out of range [$mn,$mx) will be converted to the boundary value.
+   * Unlike vectorize, where it treats the value as a cycle multiple.
+   *
+   * @param float $value Number to convert from scalar to vector [u,v].
+   * @param float $mn Minimum value allowed in cycle range.
+   * @param float $mx Maximum value allowed in cycle range.
+   * @return float[2] array containing [u, v] vectorized cycling value.
+   * @see vectorize
+   */
+  function vectorize_clipped($value, $mn, $mx) { 
+    $p = 2*M_PI*((min($mx, max($mn, $value)))-$mn)/($mx-$mn);
+    return array( round(cos($p), 14), round(sin($p), 14) );
+  } // END: function vectorize_clipped($value, $mn, $mx)
+
+
+  /**
+   * Return vector values for day [0,364-365) for epoch timestamp $ts.
+   *
+   * @param int $ts Timestamp of day to convert.
+   * @return float[2] Array containing [u, v] for day of year.
+   */
+  function dayOfYear($ts=null) { 
+   $ts = ($ts===null) ? time() : $ts;
+    return vectorValue((int)date("z",$ts), 0, 365+(int)date("L",$ts));
+  } // END: function dayOfYear($ts)
+
+
+  /**
+   * Return vector values for time [0,86400) for epoch timestamp $ts.
+   *
+   * @param int $ts Timestamp of time to convert.
+   * @return float[2] Array containing [u, v] for time of day.
+   */
+  function timeOfDay($ts=null) { 
+    $ts = ($ts===null) ? time() : $ts;
+    return vectorValue( $ts%86400, 0, 86400 );
+  } // END: function timeOfDay($ts)
+
+
+  /**
+   * Convert vectorized [u,v] to linear representation.
+   * If $mn and $mx are omitted, the linear range is between [0,2*PI).
+   *
+   * @param float $u U-value returned from vectorize.
+   * @param float $v V-value returned from vectorize.
+   * @param float $mn Minimum value of cyclical range.
+   * @param float $mx Maximum value of cyclical range.
+   * @return float linear representation of cyclical [u,v] vector.
+   * @see vectorize
+   */
+  function linearize($u, $v, $mn=0, $mx=0) { 
+    if( $mn==$mx && $mx==0 ) { 
+      $mx = 2*M_PI;
+    }
+    if( $v<0 ) { 
+      return $mn + ($mx-$mn)*(2*M_PI+atan2($v, $u))/(2*M_PI);
+    }
+    return $mn + ($mx-$mn)*atan2($v, $u)/(2*M_PI);
+  } // END: function linearize($u, $v, $mn=0, $mx=0)
+
+
+} // END: class Cyclical
+
+
+// EOF -- Cyclical.inc.php
+?>
