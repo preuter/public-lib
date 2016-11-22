@@ -1,11 +1,11 @@
 # public-lib
-A collection of core libraries I've created over the years.
+A collection of core libraries that I've created over the years.
 
 # Favorites
-  - A.php
-  - DirectoryWatcher.php
-  - FtpReader.php
-  - RT_HTTP.php
-  - SocketClientServer.php
-  - Units.php
-  - USMarketCalendar.php
+  - [A.php](src/A.php)
+  - [DirectoryWatcher.php](src/DirectoryWatcher.php)
+  - [FtpReader.php](src/FtpReader.php)
+  - [RT_HTTP.php](src/RT_HTTP.php)
+  - [SocketClientServer.php](src/SocketClientServer.php)
+  - [Units.php](src/Units.php)
+  - [USMarketCalendar.php](src/USMarketCalendar.php)
