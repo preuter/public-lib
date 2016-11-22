@@ -24,7 +24,7 @@ class FtpReader {
   var $host = 'localhost';
   var $port = 21;
   var $user = "Anonymous";
-  var $pass = "ftpReader@ucsd.edu";
+  var $pass = "ftpReader@gmail.com";
   var $path = '/';
 
   var $DEBUG = false;
