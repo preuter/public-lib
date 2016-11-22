@@ -1,0 +1,401 @@
+<?php
+ /**
+  * Establishes a socket on which all incoming messages are redistributed.
+  *
+  * @file RelayServer.php
+  * @date 2014-05-23 15:01 PDT
+  * @author Paul Reuter
+  * @version 1.0.3
+  *
+  * @modifications <pre>
+  * 1.0.0 - 2012-09-21 - Created from template: phpclass
+  * 1.0.1 - 2012-09-24 - Completed debugging
+  * 1.0.2 - 2013-07-13 - Add: heartbeat
+  * 1.0.3 - 2014-05-23 - Add: flag to control local/all relays. default=local
+  * </pre>
+  */
+
+
+/**
+ * 
+ * @package RelayServer
+ */
+class RelayServer {
+
+  /**
+   * @public
+   */
+  var $VERBOSE = 0;
+  var $SOMAXCONN = 32;
+
+  /**
+   * @protected
+   */
+  var $inaddr = 0; // INADDR_ANY
+  var $port = 12345;
+  var $endTime = 0;  // if<0: -dt, if=0: none, if>0: epoch
+
+  /**
+   * @private
+   */
+  var $socket = false;
+  var $clients = array();
+  var $_remoteRelay = false;
+
+  /**
+   * @private
+   */
+  var $heartbeatInterval = 30;  // seconds
+  var $heartbeatPayload = "\n"; // content
+  var $heartbeatNext = 0;       // future timestamp or 0 = no heartbeat.
+
+  /**
+   * @public
+   * @return new RelayServer object
+   *
+   * @param uint $port port number to bind to
+   * @param uint|string $inaddr IP of eth interface to bind to.
+   */
+  function RelayServer($port,$inaddr=0) {
+    $this->inaddr = ($inaddr===0) ? 0 : gethostbyname($inaddr);
+    $this->port = intVal($port);
+    register_shutdown_function(array($this,'shutdown'),posix_getpid());
+    return ($this->port) ? $this : false; //($this->open($port))?$this:false;
+  } // END: constructor RelayServer
+
+
+  /**
+   * @public
+   */
+  function setHeartbeat($interval,$payload="\n") { 
+    $this->heartbeatInterval = intVal($interval);
+    $this->heartbeatPayload = $payload;
+    $this->heartbeatNext = time() + $this->heartbeatInterval;
+  } // END: function setHeartbeat($interval,$payload="\n")
+
+
+  /**
+   * @public
+   */
+  function acceptRemoteRelay($b=true) { 
+    $this->_remoteRelay = ($b) ? true : false;
+    return true;
+  } // END: function acceptRemoteRelay($b=true)
+
+
+  /**
+   * @protected
+   */
+  function open($port=null,$inaddr=null) {
+    if( $port!==null ) { 
+      if( $this->port !== $port ) { 
+        $this->closeAll();
+      }
+      $this->port = intVal($port);
+    }
+    if( $inaddr !== null && $this->inaddr !== $inaddr ) { 
+      $this->closeAll();
+      $this->inaddr = gethostbyname($inaddr);
+    }
+    if( $this->socket!==false ) { 
+      return true;
+    }
+
+    // Create a server, listen for incoming connections
+    $retries = 0;
+    do {
+      sleep(3*$retries);
+      $retries += 1;
+      // Create a server socket, bind to local port, listen on server port
+      $this->socket = socket_create(AF_INET,SOCK_STREAM,SOL_TCP);
+      socket_set_option($this->socket,SOL_SOCKET,SO_REUSEADDR,1); 
+      if(  false === $this->socket ) { 
+        $this->close($this->socket);
+        $this->socket = false;
+        continue;
+      } 
+      if( false===@socket_bind($this->socket,$this->inaddr,$this->port) ) { 
+        $this->close($this->socket);
+        $this->socket = false;
+        continue;
+      }
+      if( false === socket_listen($this->socket,$this->SOMAXCONN) ) {
+        $this->close($this->socket);
+        $this->socket = false;
+        continue;
+      }
+      if( $this->VERBOSE && is_resource($this->socket) ) { 
+        @socket_getsockname($this->socket,$addr,$port);
+        echo("Established service on $addr:$port\n");
+      }
+      // socket_set_option introduced in PHP 4.3.0
+      if( function_exists('socket_set_option') ) {
+        @socket_set_option($this->socket,SOL_SOCKET,SO_KEEPALIVE,1);
+      } else { 
+        // For PHP versions older than 4.3.0
+        @socket_setopt($this->socket,SOL_SOCKET,SO_KEEPALIVE,1);
+      }
+    } while( $this->socket === false && $retries < 6 );
+
+    return ($this->socket!==false) ? true : false;
+  } // END: function open($port=null)
+
+
+  /**
+   * Startup and enter relay service loop. This loop will run forever
+   * unless a shutdown time or time limit was set.
+   *
+   * @public
+   */
+  function relay() { 
+    if( !$this->open() ) { 
+      error_log("Couldn't open relay port.");
+      return false;
+    }
+    $t0 = time();
+    while( true ) {
+      if( $this->endTime > 0 && $this->endTime > time() ) { 
+        // user set specific end time.
+        if( $this->VERBOSE ) { 
+          echo("Service time expiration reached. Shutting down.\n");
+        }
+        return $this->closeAll();
+      }
+      if( $this->endTime < 0 && ($t0-time()) < $this->endTime ) { 
+        if( $this->VERBOSE ) { 
+          echo("Service uptime duration reached. Shutting down.\n");
+        }
+        // user set relative end time (indicated by negative seconds).
+        return $this->closeAll();
+      }
+      // Accept new clients who've connected since last client began sending.
+      // Add them to the array of relays.
+
+      while( true ) {
+        if( empty($this->clients) ) { 
+          socket_set_block($this->socket);
+        } else { 
+          socket_set_nonblock($this->socket);
+        }
+
+        // request for sockets from non-blockng socket
+        $rsock = @socket_accept($this->socket);
+
+        // none returned
+        if( $rsock === false ) {
+          // stop asking for sockets
+          break;
+        } else {
+          // accept socket, ask for more.
+          if( is_resource($rsock) ) {
+            if( $this->VERBOSE ) { 
+              @socket_getpeername($rsock,$addr,$port);
+              echo("Client connected from $addr:$port\n");
+            }
+            // We'll use the socket_select to mux through remote sockets
+            if( !socket_set_nonblock($rsock) ) {
+              error_log(
+                "socket_set_block: ".socket_strerror(socket_last_error())
+              );
+              socket_clear_error();
+            }
+            $this->clients[] = $rsock;
+          }
+        }
+      }
+      // Maybe error from non-blocking socket-accept
+      socket_clear_error();
+
+      // Pick any socket that wants to write to stream
+      // Read from this socket until it's done sending.
+      // NB: if sending a huge file... could lock for a long time.
+      $except = $clients = $this->clients;
+      if( !empty($clients)
+      &&   socket_select($clients,$write=null,$except,0) > 0 ) { 
+
+        // We must read from all clients that were selected
+        while( !empty($clients) ) { 
+          // Accept a client, get client address.
+          $sock = array_shift($clients);
+          @socket_getpeername($sock,$addr,$port);
+          if( $this->VERBOSE && is_resource($sock) ) { 
+            echo("recv from $addr:$port\n");
+          }
+          $len = @socket_recv($sock,$dat,4096,0);
+          if( socket_last_error() ) { 
+            if( $this->VERBOSE ) { 
+              echo("socket_recv: ".socket_strerror(socket_last_error())."\n");
+            }
+            $this->removeClient($sock);
+            continue;
+          }
+          while( $len > 0 ) { 
+            // Check for control characters
+            if( strlen($dat) == 1 ) { 
+              // http://www.bbdsoft.com/ascii.html
+              if( ord($dat{0})==4 ) {  // EOT
+                if( $this->VERBOSE ) { 
+                  echo("Received EOT\n");
+                }
+                $this->removeClient($sock);
+                break;
+              }
+            }
+            if( $this->VERBOSE ) { 
+              echo("data: $dat\n");
+            }
+
+            // Relay if socket is local, or if client-relays enabled.
+            if( $this->_remoteRelay || !((ip2long($addr)>>16)^0x7f00) ) { 
+              // Send what was received to each of the clients[] sockets.
+              // Maintain list of relays by preserving active sockets.
+              $this->heartbeatNext = time() + $this->heartbeatInterval;
+              foreach($this->clients as $relay) { 
+                if( $relay !== $sock ) { 
+                  if( $this->VERBOSE && is_resource($relay) ) { 
+                    echo("send to $addr:$port\n");
+                  }
+                  if( false === @socket_send($relay,$dat,$len,null) ) {
+                    if( $this->VERBOSE ) { 
+                      echo("Client unexpected disconnected at $addr:$port\n");
+                    }
+                    // If packet failed to send, drop client
+                    $this->removeClient($relay);
+                  }
+                }
+              }
+            }
+
+            // get next packet
+            $len = @socket_recv($sock,$dat,4096,0);
+          } // end while( $len > 0 )
+
+          // EOF indicated by zero-length data from socket_select recv
+          if( !socket_last_error() && strlen($dat)===0 ) { 
+            if( $this->VERBOSE ) { 
+              echo("Received EOF\n");
+            }
+            $this->removeClient($sock);
+          }
+
+        } // end while !empty clients
+
+        while( !empty($except) ) { 
+          $sock = array_shift($except);
+          if( $this->VERBOSE && is_resource($sock) ) { 
+            @socket_getpeername($sock,$addr,$port);
+            echo("Exception from $addr:$port\n");
+          }
+          $this->removeClient($sock);
+        } // end while !empty exceptions
+
+      } // end if non-empty socket-select
+
+      // send heartbeat message to all clients.
+      if( $this->heartbeatNext && time() > $this->heartbeatNext ) { 
+        $dat = $this->heartbeatPayload;
+        $len = strlen($dat);
+        foreach($this->clients as $relay) {
+          if( $this->VERBOSE && is_resource($relay) ) {
+            @socket_getpeername($relay,$addr,$port);
+            echo("send heartbeat to $addr:$port\n");
+          }
+          if( false===@socket_send($relay,$dat,$len,null) ) {
+            if( $this->VERBOSE ) {
+              @socket_getpeername($addr,$port);
+              echo("Client unexpected disconnected at $addr:$port\n");
+            }
+            // If packet failed to send, drop client
+            $this->removeClient($relay);
+          }
+        }
+        $this->heartbeatNext = time() + $this->heartbeatInterval;
+      }
+
+      usleep(250000);
+    } // end while( true )
+
+    return true;
+  } // END: function relay()
+
+
+  function removeClient($socket) { 
+    $ix = array_search($socket,$this->clients);
+    if( $ix !== false ) { 
+      array_splice($this->clients,$ix,1);
+    }
+    $this->close($socket);
+    return true;
+  } // END: function removeClient($socket)
+
+
+  function closeAll() { 
+    foreach( $this->clients as $sock ) { 
+      $this->close($sock);
+    }
+    $this->clients = array();
+
+    if( $this->socket !== false ) { 
+      $this->close($this->socket);
+    }
+    $this->socket = false;
+    return true;
+  } // END: function close()
+
+
+  function close($socket) { 
+    if( $this->VERBOSE && is_resource($socket) ) { 
+      if( $socket===$this->socket ) { 
+        @socket_getsockname($socket,$addr,$port);
+      } else { 
+        @socket_getpeername($socket,$addr,$port);
+      }
+      echo("Shutting down $addr:$port\n");
+    }
+    @socket_shutdown($socket,2);
+    while( @socket_read($socket,4096) ) { ; }
+    @socket_close($socket);
+    socket_clear_error();
+    return true;
+  } // END: function close($socket)
+
+
+  function setShutdownTime($ts) { 
+    if( (string)$ts === (string)intVal($ts) ) { 
+      $this->endTime = intVal($ts);
+    } else { 
+      $this->endTime = strtotime($ts);
+      if( $this->endTime===false || $this->endTime===-1 ) { 
+        $this->endTime = 0;
+        return false;
+      }
+    }
+    return true;
+  } // END: function setShutdownTime($ts)
+
+
+  function setMaxClients($n) { 
+    $this->SOMAXCONN = intVal($n);
+    return ($n>0);
+  } // END: function setMaxClients($n)
+
+
+  /**
+   * Conditional shutdown function. Protect against child processes.
+   *
+   * @access private
+   * @param uint $pid Process id to shut down for.
+   * @return bool always true.
+   */
+  function shutdown($pid=null) {
+    if( $pid===null || posix_getpid()==$pid ) {
+      $this->closeAll();
+    }
+    return true;
+  } // END: function shutdown($pid=null)
+
+} // END: class RelayServer
+
+
+// EOF -- RelayServer.php
+?>

@@ -1,0 +1,1035 @@
+<?php
+ /**
+  *
+  * Establishes a socket on which all incoming messages are redistributed.
+  *
+  * @file SocketClientServer.php
+  * @date 2014-08-27 17:43 PDT
+  * @author Paul Reuter
+  * @version 1.1.0
+  *
+  * @modifications <pre>
+  * 1.0.0 - 2013-05-23 - Created from RelayServer.php
+  * 1.0.1 - 2013-07-07 - BugFix: If expiration time set.
+  * 1.0.2 - 2013-07-12 - Add: recv function()
+  * 1.0.3 - 2014-08-19 - Add: recv_n($n=1) and isConnected()
+  * 1.1.0 - 2014-08-27 - Modify: SocketClient->connect no longer retries.
+  * </pre>
+  */
+
+
+define('ENOTSOCK',      88);    /* Socket operation on non-socket */
+define('EDESTADDRREQ',  89);    /* Destination address required */
+define('EMSGSIZE',      90);    /* Message too long */
+define('EPROTOTYPE',    91);    /* Protocol wrong type for socket */
+define('ENOPROTOOPT',   92);    /* Protocol not available */
+define('EPROTONOSUPPORT', 93);  /* Protocol not supported */
+define('ESOCKTNOSUPPORT', 94);  /* Socket type not supported */
+define('EOPNOTSUPP',    95);    /* Operation not supported on transport endpoint */
+define('EPFNOSUPPORT',  96);    /* Protocol family not supported */
+define('EAFNOSUPPORT',  97);    /* Address family not supported by protocol */
+define('EADDRINUSE',    98);    /* Address already in use */
+define('EADDRNOTAVAIL', 99);    /* Cannot assign requested address */
+define('ENETDOWN',      100);   /* Network is down */
+define('ENETUNREACH',   101);   /* Network is unreachable */
+define('ENETRESET',     102);   /* Network dropped connection because of reset */
+define('ECONNABORTED',  103);   /* Software caused connection abort */
+define('ECONNRESET',    104);   /* Connection reset by peer */
+define('ENOBUFS',       105);   /* No buffer space available */
+define('EISCONN',       106);   /* Transport endpoint is already connected */
+define('ENOTCONN',      107);   /* Transport endpoint is not connected */
+define('ESHUTDOWN',     108);   /* Cannot send after transport endpoint shutdown */
+define('ETOOMANYREFS',  109);   /* Too many references: cannot splice */
+define('ETIMEDOUT',     110);   /* Connection timed out */
+define('ECONNREFUSED',  111);   /* Connection refused */
+define('EHOSTDOWN',     112);   /* Host is down */
+define('EHOSTUNREACH',  113);   /* No route to host */
+define('EALREADY',      114);   /* Operation already in progress */
+define('EINPROGRESS',   115);   /* Operation now in progress */
+define('EREMOTEIO',     121);   /* Remote I/O error */
+define('ECANCELED',     125);   /* Operation Canceled */ 
+
+
+/**
+ * Establish a long-lasting service on a local port.
+ * Use callbacks to recv data from clients.
+ *
+ * @package SocketClientServer
+ */
+class SocketServer {
+
+  /**
+   * @public
+   */
+  var $VERBOSE = 0;
+  var $SOMAXCONN = 32;
+
+  /**
+   * @protected
+   */
+  var $inaddr = 0; // INADDR_ANY
+  var $port = 12345;
+  var $endTime = 0;  // if<0: -dt, if=0: none, if>0: epoch
+
+  /**
+   * @private
+   */
+  var $socket = false;
+  var $clients = array();
+  var $INADDR_ANY = 0;
+
+  /**
+   * List of callbacks.
+   * @private
+   */
+  var $onCliConn = array(); // When client connects, callback(client_socket)
+  var $onCliDisc = array(); // When client disconnect, callback(client_socket)
+  var $onRecv = array();    // server recvs data, callback(client_socket,data)
+  var $onRecRecv = array(); // server recvs delimited record, cb(cli_sock,rec)
+  var $recDelim = "\n";     // Record delimiter
+  var $recBuffer = array(); // List of client buffers.
+
+  /**
+   * @public
+   * @return new SocketServer object
+   *
+   * @param uint $port port number to bind to
+   * @param uint|string $inaddr IP of eth interface to bind to. 0=>INADDR_ANY.
+   */
+  function SocketServer($port=12345,$inaddr=0) {
+    if( intVal($port)>0 ) { 
+      $this->port = intVal($port);
+    }
+    $this->inaddr = ($inaddr==0) ? 0 : gethostbyname($inaddr);
+    register_shutdown_function(array($this,'shutdown'), posix_getpid());
+    return $this;
+  } // END: constructor SocketServer
+
+
+  /**
+   * Establish a function to call when a new client connects.
+   * callback accepts($client_socket)
+   * If called as addOnClientConnect($cb,$param1,$param2...),
+   * then $cb($param1,$param2,...);
+   *
+   * @param calllback $cb function that accepts $client_socket (or user params)
+   * @return SocketCallback a new callback object.
+   */
+  function addOnClientConnect($cb) { 
+    if( !is_callable($cb) ) { 
+      return false;
+    }
+    $this->onCliConn[] = new SocketCallback($cb,array_slice(func_get_args(),1));
+    return $this->onCliConn[count($this->onCliConn)-1];
+  } // END: function addOnClientConnect($cb)
+
+
+  /**
+   * Remove a callback.
+   *
+   * @param SocketCallback $cb The object returned from the add function.
+   * @return bool true if found and removed, false otherwise.
+   */
+  function remOnClientConnect($cb) { 
+    foreach(array_keys($this->onCliConn) as $i) { 
+      if( $this->onCliConn[$i] === $cb ) { 
+        array_splice($this->onCliConn,$i,1);
+        return true;
+      }
+    }
+    return false;
+  } // END: function remOnClientConnect($cb)
+
+
+  /**
+   * callback accepts($client_socket)
+   *
+   * @public
+   * @see addOnClientConnect
+   */
+  function addOnClientDisconnect($cb) { 
+    if( !is_callable($cb) ) { 
+      return false;
+    }
+    $this->onCliDisc[] = new SocketCallback($cb,array_slice(func_get_args(),1));
+    return $this->onCliDisc[count($this->onCliDisc)-1];
+  } // END: function addOnClientDisconnect($cb)
+
+
+  /**
+   * Remove a callback.
+   *
+   * @public
+   * @param SocketCallback $cb The object returned from the add function.
+   * @return bool true if found and removed, false otherwise.
+   */
+  function remOnClientDisconnect($cb) { 
+    foreach(array_keys($this->onCliDisc) as $i) { 
+      if( $this->onCliDisc[$i] === $cb ) { 
+        array_splice($this->onCliDisc,$i,1);
+        return true;
+      }
+    }
+    return false;
+  } // END: function remOnClientDisconnect($cb)
+
+
+  /**
+   * callback accepts($client_socket,$data)
+   *
+   * @public
+   * @see addOnClientConnect
+   */
+  function addOnRecv($cb) { 
+    if( !is_callable($cb) ) { 
+      return false;
+    }
+    $this->onRecv[] = new SocketCallback($cb,array_slice(func_get_args(),1));
+    return $this->onRecv[count($this->onRecv)-1];
+  } // END: function addOnRecv($cb)
+
+
+  /**
+   * Remove a callback.
+   *
+   * @public
+   * @param SocketCallback $cb The object returned from the add function.
+   * @return bool true if found and removed, false otherwise.
+   */
+  function remOnRecv($cb) { 
+    foreach(array_keys($this->onRecv) as $i) { 
+      if( $this->onRecv[$i] === $cb ) { 
+        array_splice($this->onRecv,$i,1);
+        return true;
+      }
+    }
+    return false;
+  } // END: function remOnRecv($cb)
+
+
+  /**
+   * Define a record delimiter for addOnRecRecv callbacks.
+   *
+   * @public
+   * @see addOnRecRecv
+   * @param string $delim Record delimiter.
+   * @return bool true if $delim is non-empty, false otherwise.
+   */
+  function setRecordDelimiter($delim="\n") { 
+    $this->recDelim = $delim;
+    return (strlen($delim)>0);
+  } // END: function setRecordDelimiter($delim="\n")
+
+
+  /**
+   * callback accepts($client_socket,$record)
+   *
+   * @public
+   * @see addOnClientConnect
+   */
+  function addOnRecRecv($cb) { 
+    if( !is_callable($cb) ) { 
+      return false;
+    }
+    $this->onRecRecv[] = new SocketCallback($cb,array_slice(func_get_args(),1));
+    return $this->onRecRecv[count($this->onRecRecv)-1];
+  } // END: function addOnRecRecv($cb)
+
+
+  /**
+   * Remove a callback.
+   *
+   * @public
+   * @param SocketCallback $cb The object returned from the add function.
+   * @return bool true if found and removed, false otherwise.
+   */
+  function remOnRecRecv($cb) { 
+    foreach(array_keys($this->onRecRecv) as $i) { 
+      if( $this->onRecRecv[$i] === $cb ) { 
+        array_splice($this->onRecRecv,$i,1);
+        return true;
+      }
+    }
+    return false;
+  } // END: function remOnRecRecv($cb)
+
+
+  /**
+   * Schedule service to shut down at time or after period of time.
+   * When $ts is negative, the service will shut down abs($ts) sec from now.
+   * If positive, is assumed to be an epoch timestamp, when service should die.
+   * Otherwise, attempts to parse string with strtotime($ts)
+   *
+   * @public
+   * @param int $ts Either epoch timestamp or negative duration to live.
+   * @return bool true if time is valid, false otherwise.
+   */
+  function setShutdownTime($ts) { 
+    if( (string)$ts === (string)intVal($ts) ) { 
+      $this->endTime = intVal($ts);
+    } else { 
+      $this->endTime = strtotime($ts);
+      if( $this->endTime===false || $this->endTime===-1 ) { 
+        $this->endTime = 0;
+        return false;
+      }
+    }
+    return true;
+  } // END: function setShutdownTime($ts)
+
+
+  /**
+   * Set the maximum number of simultaniously connected clients.
+   *
+   * @public
+   * @param int $n Max number of clients to allow.
+   * @return bool true if $n is positive, false otherwise.
+   */
+  function setMaxClients($n) { 
+    $this->SOMAXCONN = intVal($n);
+    return ($n>0);
+  } // END: function setMaxClients($n)
+
+
+  /**
+   * Start the service loop. This loop will run forever
+   * unless a shutdown time or time limit was set.
+   *
+   * @public
+   */
+  function start() { 
+    if( !$this->open() ) { 
+      error_log("Couldn't open server port.");
+      return false;
+    }
+    $t0 = time();
+    while( true ) {
+      if( $this->endTime > 0 && time() > $this->endTime ) { 
+        // user set specific end time.
+        if( $this->VERBOSE ) { 
+          echo("Service time expiration reached. Shutting down.\n");
+        }
+        return $this->closeAll();
+      }
+      if( $this->endTime < 0 && ($t0-time()) < $this->endTime ) { 
+        if( $this->VERBOSE ) { 
+          echo("Service uptime duration reached. Shutting down.\n");
+        }
+        // user set relative end time (indicated by negative seconds).
+        return $this->closeAll();
+      }
+      // Accept new clients who've connected since last client began sending.
+      // Add them to the array of relays.
+
+      while( true ) {
+        if( empty($this->clients) ) { 
+          socket_set_block($this->socket);
+        } else { 
+          socket_set_nonblock($this->socket);
+        }
+
+        // request for sockets from non-blockng socket
+        $rsock = @socket_accept($this->socket);
+
+        // none returned
+        if( $rsock === false ) {
+          // stop asking for sockets
+          break;
+        } else {
+          // accept socket, ask for more.
+          if( is_resource($rsock) ) {
+            if( $this->VERBOSE ) { 
+              @socket_getpeername($rsock,$addr,$port);
+              echo("Client connected from $addr:$port\n");
+            }
+            // Establish client socket as blocking. 
+            // We don't want to wait on a socket that has nothing to say.
+            if( !socket_set_nonblock($rsock) ) {
+              error_log(
+                "socket_set_nonblock: ".socket_strerror(socket_last_error())
+              );
+              socket_clear_error();
+            }
+            foreach($this->onCliConn as $cb) { 
+              $cb->call($rsock);
+            }
+            $this->clients[] = $rsock;
+            if( !empty($this->onRecRecv) ) { 
+              $this->recBuffer[$rsock] = "";
+            }
+          }
+        }
+      }
+      // Maybe error from non-blocking socket-accept
+      socket_clear_error();
+
+      // Pick any socket that wants to write to stream
+      // Read from this socket until it's done sending.
+      // NB: if sending a huge file... could lock for a long time.
+      $except = $clients = $this->clients;
+      if( !empty($clients)
+      &&   socket_select($clients,$write=null,$except,0) > 0 ) { 
+
+        // We must read from all clients that were selected
+        while( !empty($clients) ) { 
+          $sock = array_shift($clients);
+          if( $this->VERBOSE && is_resource($sock) ) { 
+            @socket_getpeername($sock,$addr,$port);
+            echo("recv from $addr:$port\n");
+          }
+          $len = socket_recv($sock,$dat,4096,0);
+          while( $len > 0 ) { 
+            // Check for control characters
+            if( strlen($dat) == 1 ) { 
+              // http://www.bbdsoft.com/ascii.html
+              if( ord($dat{0})==4 ) {  // EOT
+                if( $this->VERBOSE ) { 
+                  echo("Received EOT\n");
+                }
+                $this->removeClient($sock);
+                break;
+              }
+            }
+            if( $this->VERBOSE ) { 
+              echo("data: $dat\n");
+            }
+            // Call each recv callback
+            foreach($this->onRecv as $cb) { 
+              $cb->call($sock,$dat);
+            }
+            // Call each record callback if we have complete record.
+            if( !empty($this->onRecRecv) ) { 
+              $this->recBuffer[$sock] .= $dat;
+              while( ($pos=strpos($this->recBuffer[$sock],$this->recDelim))!==false ) {
+                $record = substr($this->recBuffer[$sock],0,$pos);
+                $this->recBuffer[$sock] = substr($this->recBuffer[$sock],$pos+1);
+                foreach($this->onRecRecv as $cb) { 
+                  $cb->call($sock,$record);
+                }
+              }
+            }
+
+            /**
+            *** DON'T RELAY
+             **
+            // Send what was received to each of the clients[] sockets.
+            // Maintain list of relays by preserving active sockets.
+            foreach($this->clients as $relay) { 
+              if( $relay !== $sock ) { 
+                if( $this->VERBOSE && is_resource($relay) ) { 
+                  @socket_getpeername($relay,$addr,$port);
+                  echo("send to $addr:$port\n");
+                }
+                if( false === @socket_send($relay,$dat,$len,null) ) {
+                  if( $this->VERBOSE ) { 
+                    @socket_getpeername($addr,$port);
+                    echo("Client unexpected disconnected at $addr:$port\n");
+                  }
+                  // If packet failed to send, drop client
+                  $this->removeClient($relay);
+                }
+              }
+            }
+            **
+            ***
+            **/
+
+            // get next packet
+            $len = @socket_recv($sock,$dat,4096,0);
+          } // end while( $len > 0 )
+
+          // EOF indicated by zero-length data from socket_select recv
+          if( !socket_last_error() && strlen($dat)===0 ) { 
+            if( $this->VERBOSE ) { 
+              echo("Received EOF\n");
+            }
+            $this->removeClient($sock);
+          }
+
+        } // end while !empty clients
+      } // end if non-empty socket-select
+
+      usleep(250000);
+    } // end while( true )
+
+    return true;
+  } // END: function start()
+
+
+  /**
+   * Open a service port on local machine.
+   *
+   * @protected
+   * @param int $port Local port number to establish service on.
+   * @param int $inaddr Which local interface to listen on.
+   * @return bool true if success, false otherwise.
+   */
+  function open($port=null,$inaddr=null) {
+    if( $port!==null ) { 
+      if( $this->port !== $port ) { 
+        $this->closeAll();
+      }
+      $this->port = intVal($port);
+    }
+    if( $inaddr !== null ) { 
+      $inaddr = gethostbyname($inaddr);
+      if( $this->inaddr !== $inaddr ) { 
+        $this->closeAll();
+        $this->inaddr = $inaddr;
+      }
+    }
+    if( $this->socket!==false ) { 
+      return true;
+    }
+
+    // Create a server, listen for incoming connections
+    $retries = 0;
+    do {
+      sleep(3*$retries);
+      $retries += 1;
+      // Create a server socket, bind to local port, listen on server port
+      $this->socket = socket_create(AF_INET,SOCK_STREAM,SOL_TCP);
+      socket_set_option($this->socket,SOL_SOCKET,SO_REUSEADDR,1); 
+      if(  false === $this->socket ) { 
+        $this->close($this->socket);
+        $this->socket = false;
+        continue;
+      } 
+      if( false===@socket_bind($this->socket,$this->inaddr,$this->port) ) { 
+        $this->close($this->socket);
+        $this->socket = false;
+        continue;
+      }
+      if( false === socket_listen($this->socket,$this->SOMAXCONN) ) {
+        $this->close($this->socket);
+        $this->socket = false;
+        continue;
+      }
+      if( $this->VERBOSE && is_resource($this->socket) ) { 
+        @socket_getsockname($this->socket,$addr,$port);
+        echo("Established service on $addr:$port\n");
+      }
+      // socket_set_option introduced in PHP 4.3.0
+      if( function_exists('socket_set_option') ) {
+        @socket_set_option($this->socket,SOL_SOCKET,SO_KEEPALIVE,1);
+      } else { 
+        // For PHP versions older than 4.3.0
+        @socket_setopt($this->socket,SOL_SOCKET,SO_KEEPALIVE,1);
+      }
+    } while( $this->socket === false && $retries < 6 );
+
+    return ($this->socket!==false) ? true : false;
+  } // END: function open($port=null)
+
+
+  /**
+   * Remove a client socket from local list of connections.
+   *
+   * @private
+   * @param int $socket A client socket to remove.
+   * @return bool true if found, false otherwise.
+   */
+  function removeClient($socket) { 
+    $ix = array_search($socket,$this->clients);
+    if( $ix !== false ) { 
+      array_splice($this->clients,$ix,1);
+    }
+    $this->close($socket);
+    return true;
+  } // END: function removeClient($socket)
+
+
+  /**
+   * Close all sockets. Client and server sockets shut down.
+   *
+   * @private
+   * @return bool always true.
+   */
+  function closeAll() { 
+    foreach( $this->clients as $sock ) { 
+      $this->close($sock);
+    }
+    $this->clients = array();
+
+    if( $this->socket !== false ) { 
+      $this->close($this->socket);
+    }
+    $this->socket = false;
+    return true;
+  } // END: function close()
+
+
+  /**
+   * Close a client socket (or server socket).
+   *
+   * @private
+   * @param int $socket A socket to close (could also be server socket).
+   * @return bool always true.
+   */
+  function close($socket) { 
+    if( $this->VERBOSE && is_resource($socket) ) { 
+      if( $socket===$this->socket ) { 
+        @socket_getsockname($socket,$addr,$port);
+      } else { 
+        @socket_getpeername($socket,$addr,$port);
+      }
+      echo("Shutting down $addr:$port\n");
+    }
+    // Call all disconnect callbacks.
+    foreach($this->onCliDisc as $cb) { 
+      $cb->call($socket);
+    }
+    // Free memory for socket buffer
+    unset($this->recBuffer[$socket]);
+
+    @socket_shutdown($socket,2);
+    while( @socket_read($socket,4096) ) { ; }
+    @socket_close($socket);
+    socket_clear_error();
+    return true;
+  } // END: function close($socket)
+
+
+  /**
+   * Conditional shutdown handler - protects against child processes.
+   *
+   * @access private
+   * @param uint $pid Process ID to shutdown for.
+   * @return bool always true
+   */
+  function shutdown($pid=null) {
+    if( $pid===null || posix_getpid()==$pid ) {
+      $this->closeAll();
+    }
+    return true;
+  } // END: function shutdown($pid=null)
+
+
+} // END: class SocketServer
+
+
+
+/**
+ * @package SocketClientServer
+ */
+class SocketClient {
+  /**
+   * @public
+   */
+  var $VERBOSE = 0;
+
+  /**
+   * @protected
+   */
+  var $host = "localhost";
+  var $port = 12345;
+  var $endTime = 0;  // if<0: -dt, if=0: none, if>0: epoch
+
+  /**
+   * @private
+   */
+  var $socket = false;
+  var $SOCK_UNAVAIL = 11; // resource temporarily unavailable
+  var $IDLE_USLEEP = 100000; // 100 ms sleep while idle.
+  var $HEARTBEAT = 30; // 30 seconds between isUp server?
+
+  var $TCP_MIN = 250000; // microsec between reconnect
+  var $TCP_INC = 250000; // microsec between reconnect
+  var $TCP_MAX = 16000000; // microsec between reconnect
+
+  /**
+   * Event handlers.
+   *
+   * @private
+   */
+  var $onRecv = array();    // server recvs data, callback(client_socket,data)
+  var $onRecRecv = array(); // server recvs delimited record, cb(cli_sock,rec)
+  var $recDelim = "\n";     // Record delimiter
+  var $recBuffer = "";      // Record buffer
+  var $maxRetries = 0;      // Max times to retry connection.
+  
+
+  function SocketClient($host="localhost",$port=12345) { 
+    $this->host = $host;
+    $this->port = $port;
+    register_shutdown_function(array($this,'shutdown'), posix_getpid());
+    return $this;
+  } // END: constructor SocketClient($host="localhost",$port=12345)
+
+
+  function numRetries($n=1) {
+    $this->maxRetries = intVal($n);
+    return true;
+  } // END: function numRetries($n=1)
+
+
+  function connect($host=null,$port=null) { 
+    $host = ($host) ? gethostbyname($host) : $this->host;
+    $port = ($port>0) ? intVal($port) : $this->port;
+    if( $this->host===$host && $this->port===$port && $this->isConnected() ) {
+      if( $this->VERBOSE ) { 
+        echo("$host:$port already connected.\n");
+      }
+      return true;
+    }
+    $this->disconnect();
+
+    $tries = 0;
+    $delay = $this->TCP_MIN;
+    while( !is_resource($this->socket)
+    &&     ($tries <= $this->maxRetries || $this->maxRetries < 0) ) {
+      $tries++;
+      // Create a client socket to connect to A&O
+      $this->socket = socket_create(AF_INET, SOCK_STREAM, SOL_TCP);
+      if( $this->socket === false ) {
+        error_log("socket_create: ".socket_strerror(socket_last_error()));
+      }
+
+      // Wait for messages; there's nothing to do if they don't send
+      // us any new packets.
+      if( !socket_set_block($this->socket) ) {
+        error_log("socket_set_block: ".socket_strerror(socket_last_error()));
+      }
+
+      // socket_set_option introduced in PHP 4.3.0
+      if( function_exists('socket_set_option') ) {
+        if( !socket_set_option($this->socket, SOL_SOCKET, SO_KEEPALIVE, 1) ) {
+          error_log("socket_set_option: ".socket_strerror(socket_last_error()));
+        }
+      } else {
+        // For PHP versions older than 4.3.0
+        if( !socket_setopt($this->socket, SOL_SOCKET, SO_KEEPALIVE, 1) ) {
+          error_log("socket_setopt: ".socket_strerror(socket_last_error()));
+        }
+      }
+
+      // Establish connection to A&O server.
+      // Note: Non-blocking sockets always return false.
+      if( !@socket_connect($this->socket, $host, $port) ) { 
+        error_log(
+          "Couldn't connect to host ($host,$port)\n".
+          "socket_connect: ".socket_last_error($this->socket)
+        );
+        socket_close($this->socket);
+        $this->socket = false;
+        if( $this->VERBOSE ) { 
+          printf("Sleeping for %d ms\n",$delay/1000);
+        }
+        if( $tries <= $this->maxRetries || $this->maxRetries < 0 ) {
+          usleep($delay);
+          $delay = min($delay+$this->TCP_INC,$this->TCP_MAX);
+        }
+      }
+    }
+
+    if( !is_resource($this->socket) ) {
+      // Unreachable statement, but left in for sanity.
+      error_log("Couldn't establish connection to server.");
+      return false;
+    }
+    if( $this->VERBOSE ) { 
+      echo("Connection established $host:$port\n");
+    }
+
+    $this->host = $host;
+    $this->port = $port;
+    return true;
+  } // END: function connect($host,$port)
+
+
+  function disconnect() { 
+    if( $this->VERBOSE && is_resource($this->socket) ) {
+      @socket_getsockname($this->socket,$addr,$port);
+      echo("Shutting down $addr:$port\n");
+    }
+
+    @socket_shutdown($this->socket,2);
+    while( @socket_read($this->socket,4096) ) { ; }
+    @socket_close($this->socket);
+    socket_clear_error();
+
+    $this->socket = false;
+    return true;
+  } // END: function disconnect()
+
+
+  function send($dat) { 
+    if( !$this->connect()
+    ||  false === @socket_send($this->socket,$dat,strlen($dat),null) ) { 
+      error_log("socket_send: ".socket_strerror(socket_last_error()));
+      return false;
+    }
+    return true;
+  } // END: function send($msg)
+
+
+  function sendRecord($rec) { 
+    return $this->send($rec.$this->recDelim);
+  } // END: function sendRecord($rec)
+
+
+  function recv() { 
+    socket_clear_error();
+    if( !$this->isConnected() && !$this->connect() ) { 
+      return false;
+    }
+
+    $buf = '';
+    $dat = '';
+    do { 
+      $t0 = microtime(true);
+      @socket_recv($this->socket,$buf,4096,MSG_DONTWAIT);
+      if( !empty($buf) ) {
+        $dat .= $buf;
+      }
+    } while( !empty($buf) && !socket_last_error());
+
+    if( empty($buf)
+    &&  $this->_timeout
+    &&  microtime(true)-$t0 < $this->_timeout
+    &&  socket_last_error() !== $this->SOCK_UNAVAIL ) {
+      $this->disconnect();
+    }
+
+    return $dat;
+  } // END: function recv()
+
+
+  function recv_n($n=1) { 
+    socket_clear_error();
+    if( !$this->isConnected() && !$this->connect() ) { 
+      return false;
+    }
+
+    $buf = '';
+    $dat = '';
+    do { 
+      $t0 = microtime(true);
+      @socket_recv($this->socket,$buf,4096,0);
+      if( !empty($buf) ) {
+        $dat .= $buf;
+      }
+      $n--;
+    } while( $n>0 && !empty($buf) && !socket_last_error() );
+
+    if( empty($buf)
+    &&  $this->_timeout
+    &&  microtime(true)-$t0 < $this->_timeout
+    &&  socket_last_error() !== $this->SOCK_UNAVAIL ) {
+      $this->disconnect();
+    }
+
+    return $buf;
+  } // END: function recv_n($n=1)
+
+
+  function idle() { 
+    if( !$this->connect() ) { 
+      return false;
+    }
+    if( !socket_set_nonblock($this->socket) ) {
+      error_log("socket_set_nonblock: ".socket_strerror(socket_last_error()));
+    }
+
+    $t0 = time();
+    $tm = $t0%$this->HEARTBEAT;
+    while(true) { 
+      if( $this->endTime > 0 && time() > $this->endTime ) { 
+        // user set specific end time.
+        if( $this->VERBOSE ) { 
+          echo("Service time expiration reached. Shutting down.\n");
+        }
+        return $this->disconnect();
+      }
+      if( $this->endTime < 0 && ($t0-time()) < $this->endTime ) { 
+        if( $this->VERBOSE ) { 
+          echo("Service uptime duration reached. Shutting down.\n");
+        }
+        // user set relative end time (indicated by negative seconds).
+        return $this->disconnect();
+      }
+
+      socket_clear_error();
+      $dat = @socket_read($this->socket,4096);
+      while( $dat != '' ) {
+        foreach($this->onRecv as $cb) { 
+          $cb->call($this->socket,$dat);
+        }
+        $this->recBuffer .= $dat;
+        while( ($pos=strpos($this->recBuffer,$this->recDelim)) !== false ) { 
+          $record = substr($this->recBuffer,0,$pos);
+          $this->recBuffer = substr($this->recBuffer,$pos+1);
+          foreach($this->onRecRecv as $cb) { 
+            $cb->call($this->socket,$record);
+          }
+        }
+        // get next packet for while loop
+        $dat = @socket_read($this->socket,4096);
+      }
+
+      if( socket_last_error($this->socket) != $this->SOCK_UNAVAIL ) { 
+        if( $this->VERBOSE ) { 
+          error_log("socket_read: ".socket_strerror(socket_last_error()));
+        }
+        return false;
+      }
+      // Heartbeat
+      if( time()%$this->HEARTBEAT == 0 && $tm > 0 ) {
+        if( false === @socket_send($this->socket,"\n",1,MSG_OOB) ) {
+          error_log("Server went away: ".socket_strerror(socket_last_error()));
+          return false;
+        }
+      }
+      $tm = time()%$this->HEARTBEAT;
+      usleep($this->IDLE_USLEEP);
+    } // end while(true)
+
+    return false;
+  } // END: function idle()
+
+
+  /**
+   * callback accepts($client_socket,$data)
+   */
+  function addOnRecv($cb) {
+    if( !is_callable($cb) ) {
+      return false;
+    }
+    $this->onRecv[] = new SocketCallback($cb,array_slice(func_get_args(),1));
+    return $this->onRecv[count($this->onRecv)-1];
+  } // END: function addOnRecv($cb)
+
+
+  function remOnRecv($cb) {
+    foreach(array_keys($this->onRecv) as $i) {
+      if( $this->onRecv[$i] === $cb ) {
+        array_splice($this->onRecv,$i,1);
+        return true;
+      }
+    }
+    return false;
+  } // END: function remOnRecv($cb)
+
+
+  function setRecordDelimiter($delim="\n") {
+    $this->recDelim = $delim;
+    return (strlen($delim)>0);
+  } // END: function setRecordDelimiter($delim="\n")
+
+
+  /**
+   * callback accepts($client_socket,$record)
+   */
+  function addOnRecRecv($cb) {
+    if( !is_callable($cb) ) {
+      return false;
+    }
+    $this->onRecRecv[] = new SocketCallback($cb,array_slice(func_get_args(),1));
+    return $this->onRecRecv[count($this->onRecRecv)-1];
+  } // END: function addOnRecRecv($cb)
+
+
+  function remOnRecRecv($cb) {
+    foreach(array_keys($this->onRecRecv) as $i) {
+      if( $this->onRecRecv[$i] === $cb ) {
+        array_splice($this->onRecRecv,$i,1);
+        return true;
+      }
+    }
+    return false;
+  } // END: function remOnRecRecv($cb)
+
+
+  function setShutdownTime($ts) {
+    if( (string)$ts === (string)intVal($ts) ) {
+      $this->endTime = intVal($ts);
+    } else {
+      $this->endTime = strtotime($ts);
+      if( $this->endTime===false || $this->endTime===-1 ) {
+        $this->endTime = 0;
+        return false;
+      }
+    }
+    return true;
+  } // END: function setShutdownTime($ts)
+
+  function isConnected() { 
+    return (is_resource($this->socket));
+  } // END: function isConnected()
+
+
+  /**
+   * Seconds until fgets should return, with or without a complete record.
+   *   timeout < 0 :: fgets will not return until there's input.
+   *   timeout > 0 :: fgets will delay this many seconds.
+   *   timeout = 0 :: fgets will return immediately with or without input.
+   *
+   * @access public
+   * @param int $sec Number of seconds to delay before returning.
+   * @param int $sec Number of microseconds to delay before returning.
+   * @return bool true if both parameters are numeric, false otherwise.
+   */
+  function setTimeout($sec=0,$usec=0) {
+    $this->_timeout = ($sec<0||$usec<0) ? 0 : $sec + $usec/1e6;
+    if( is_resource($this->socket) ) {
+      if( ($sec<0 || $usec<0) || ($sec==0 && $usec==0) ) {
+        return socket_set_nonblock($this->socket);
+      }
+      return (
+        socket_set_block($this->socket)
+        &&
+        socket_set_option(
+          $this->socket, SOL_SOCKET, SO_RCVTIMEO,
+          array('sec'=>$sec, 'usec'=>$usec)
+        )
+      );
+    }
+    return false;
+  } // END: function setTimeout($sec=0,$usec=0)
+
+
+  /**
+   * Conditional shutdown handler - protects against child processes.
+   *
+   * @access private
+   * @param uint $pid Process ID to shutdown for.
+   * @return bool always true
+   */
+  function shutdown($pid=null) {
+    if( $pid===null || posix_getpid()==$pid ) {
+      $this->disconnect();
+    }
+    return true;
+  } // END: function shutdown($pid=null)
+
+
+} // END: class SocketClient
+
+
+
+/**
+ * @package SocketClientServer
+ */
+class SocketCallback { 
+  var $fn = null;
+  var $args = array();
+
+  function SocketCallback($fn) { 
+    $this->fn = $fn;
+    if( func_num_args() > 1 ) { 
+      $this->args = func_get_arg(1);
+    }
+    return $this;
+  }
+
+  function call() { 
+    $args = (empty($this->args)) ? func_get_args() : $this->args;
+    return call_user_func_array($this->fn,$args);
+  } // END: function call()
+
+} // END: class SocketCallback
+
+
+
+// EOF -- SocketClientServer.php
+?>
